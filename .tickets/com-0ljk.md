@@ -1,6 +1,6 @@
 ---
 id: com-0ljk
-status: open
+status: closed
 deps: [com-qtjh, com-6qs4]
 links: []
 created: 2026-03-01T13:18:28Z
