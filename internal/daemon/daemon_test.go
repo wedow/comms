@@ -13,20 +13,32 @@ import (
 	"github.com/wedow/comms/internal/store"
 )
 
+type fakeReaction struct {
+	channel string
+	msgID   int
+	from    string
+	emoji   string
+	date    time.Time
+}
+
 type fakeProvider struct {
 	messages    []message.Message
 	chatIDs     []int64
 	isEdits     []bool
+	reactions   []fakeReaction
 	finalOffset int64
 }
 
-func (f *fakeProvider) Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64, isEdit bool)) (int64, error) {
+func (f *fakeProvider) Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64, isEdit bool), reactionHandler func(channel string, msgID int, from string, emoji string, date time.Time)) (int64, error) {
 	for i, msg := range f.messages {
 		isEdit := false
 		if i < len(f.isEdits) {
 			isEdit = f.isEdits[i]
 		}
 		handler(msg, f.chatIDs[i], isEdit)
+	}
+	for _, r := range f.reactions {
+		reactionHandler(r.channel, r.msgID, r.from, r.emoji, r.date)
 	}
 	return f.finalOffset, nil
 }
@@ -228,6 +240,79 @@ func TestRunHandlesEditedMessage(t *testing.T) {
 	}
 	if !strings.Contains(content, "edited text") {
 		t.Error("missing edited text in file")
+	}
+
+	// Verify cursor was reset
+	cursor, err := store.ReadCursor(root, "telegram-general")
+	if err != nil {
+		t.Fatalf("ReadCursor: %v", err)
+	}
+	if !cursor.Before(original.Date) {
+		t.Errorf("cursor %v should be before message date %v", cursor, original.Date)
+	}
+}
+
+func TestRunHandlesReaction(t *testing.T) {
+	root := t.TempDir()
+
+	// Write an original message
+	original := message.Message{
+		From:     "alice",
+		Provider: "telegram",
+		Channel:  "general",
+		Date:     time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+		ID:       "telegram-42",
+		Body:     "original text",
+	}
+	if _, err := store.WriteMessage(root, original, "markdown"); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+
+	// Advance cursor past the message
+	if err := store.WriteCursor(root, "telegram-general", time.Date(2026, 3, 1, 13, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("WriteCursor: %v", err)
+	}
+
+	fp := &fakeProvider{
+		reactions: []fakeReaction{
+			{
+				channel: "telegram-general",
+				msgID:   42,
+				from:    "bob",
+				emoji:   "\U0001f44d",
+				date:    time.Date(2026, 3, 1, 12, 10, 0, 0, time.UTC),
+			},
+		},
+		finalOffset: 60,
+	}
+
+	ctx := context.Background()
+	if err := Run(ctx, testConfig(), root, fp); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// Verify reaction was appended
+	paths, err := store.ListMessages(root, "telegram-general")
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("expected 1 message file, got %d", len(paths))
+	}
+
+	data, err := os.ReadFile(paths[0])
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "---reaction---") {
+		t.Error("missing ---reaction--- in file after reaction")
+	}
+	if !strings.Contains(content, "from: bob") {
+		t.Error("missing reaction from")
+	}
+	if !strings.Contains(content, "emoji: \U0001f44d") {
+		t.Error("missing reaction emoji")
 	}
 
 	// Verify cursor was reset

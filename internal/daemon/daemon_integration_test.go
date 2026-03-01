@@ -20,7 +20,7 @@ type blockingFakeProvider struct {
 	finalOffset int64
 }
 
-func (f *blockingFakeProvider) Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64, isEdit bool)) (int64, error) {
+func (f *blockingFakeProvider) Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64, isEdit bool), _ func(string, int, string, string, time.Time)) (int64, error) {
 	for i, msg := range f.messages {
 		handler(msg, f.chatIDs[i], false)
 	}

@@ -152,6 +152,87 @@ func TestPollProcessesChannelPost(t *testing.T) {
 	}
 }
 
+func TestPollProcessesReaction(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type reactionData struct {
+		chatID int64
+		msgID  int
+		from   string
+		emoji  string
+		date   time.Time
+	}
+	var got reactionData
+	called := false
+	reactionHandler := func(chatID int64, msgID int, from string, emoji string, date time.Time) {
+		got = reactionData{chatID, msgID, from, emoji, date}
+		called = true
+	}
+
+	testBot, err := bot.New("test-token",
+		bot.WithSkipGetMe(),
+		bot.WithDefaultHandler(func(_ context.Context, _ *bot.Bot, update *models.Update) {
+			if update.MessageReaction != nil {
+				r := update.MessageReaction
+				from := "unknown"
+				if r.User != nil {
+					from = r.User.Username
+					if from == "" {
+						from = r.User.FirstName
+					}
+				}
+				for _, rt := range r.NewReaction {
+					if rt.Type == models.ReactionTypeTypeEmoji && rt.ReactionTypeEmoji != nil {
+						reactionHandler(r.Chat.ID, r.MessageID, from, rt.ReactionTypeEmoji.Emoji, time.Unix(int64(r.Date), 0).UTC())
+					}
+				}
+				return
+			}
+		}),
+	)
+	if err != nil {
+		t.Fatalf("bot.New: %v", err)
+	}
+
+	testBot.ProcessUpdate(ctx, &models.Update{
+		ID: 400,
+		MessageReaction: &models.MessageReactionUpdated{
+			Chat:      models.Chat{ID: 999, Type: models.ChatTypeGroup, Title: "Dev Team"},
+			MessageID: 42,
+			User:      &models.User{Username: "bob"},
+			Date:      1709312400,
+			NewReaction: []models.ReactionType{
+				{
+					Type:              models.ReactionTypeTypeEmoji,
+					ReactionTypeEmoji: &models.ReactionTypeEmoji{Emoji: "\U0001f44d"},
+				},
+			},
+		},
+	})
+
+	time.Sleep(50 * time.Millisecond)
+
+	if !called {
+		t.Fatal("reaction handler was not called")
+	}
+	if got.chatID != 999 {
+		t.Errorf("chatID = %d, want 999", got.chatID)
+	}
+	if got.msgID != 42 {
+		t.Errorf("msgID = %d, want 42", got.msgID)
+	}
+	if got.from != "bob" {
+		t.Errorf("from = %q, want %q", got.from, "bob")
+	}
+	if got.emoji != "\U0001f44d" {
+		t.Errorf("emoji = %q, want %q", got.emoji, "\U0001f44d")
+	}
+	if got.date.IsZero() {
+		t.Error("date should not be zero")
+	}
+}
+
 func TestPollSkipsNilMessage(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

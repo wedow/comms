@@ -248,6 +248,54 @@ func TestAppendEdit(t *testing.T) {
 	}
 }
 
+func TestAppendReaction(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".comms")
+	if err := InitDir(root); err != nil {
+		t.Fatalf("InitDir: %v", err)
+	}
+
+	msg := message.Message{
+		From:     "alice",
+		Provider: "telegram",
+		Channel:  "general",
+		Date:     time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+		ID:       "telegram-10",
+		Body:     "original text",
+	}
+	path, err := WriteMessage(root, msg, "markdown")
+	if err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+
+	reactionDate := time.Date(2026, 3, 1, 12, 10, 0, 0, time.UTC)
+	if err := AppendReaction(path, reactionDate, "bob", "\U0001f44d"); err != nil {
+		t.Fatalf("AppendReaction: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "---reaction---") {
+		t.Error("missing ---reaction--- separator")
+	}
+	if !strings.Contains(content, "date: 2026-03-01T12:10:00Z") {
+		t.Error("missing reaction date")
+	}
+	if !strings.Contains(content, "from: bob") {
+		t.Error("missing reaction from")
+	}
+	if !strings.Contains(content, "emoji: \U0001f44d") {
+		t.Error("missing reaction emoji")
+	}
+	// Original content should still be there
+	if !strings.Contains(content, "original text") {
+		t.Error("missing original body")
+	}
+}
+
 func TestResetCursorIfNeeded(t *testing.T) {
 	root := filepath.Join(t.TempDir(), ".comms")
 	if err := InitDir(root); err != nil {

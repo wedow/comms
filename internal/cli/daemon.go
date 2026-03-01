@@ -125,6 +125,6 @@ type telegramProvider struct {
 	token string
 }
 
-func (t telegramProvider) Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64, isEdit bool)) (int64, error) {
-	return telegram.Poll(ctx, t.token, initialOffset, handler)
+func (t telegramProvider) Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64, isEdit bool), reactionHandler func(channel string, msgID int, from string, emoji string, date time.Time)) (int64, error) {
+	return telegram.Poll(ctx, t.token, initialOffset, handler, reactionHandler)
 }

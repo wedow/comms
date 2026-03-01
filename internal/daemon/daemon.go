@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 
 // Provider abstracts a message source that delivers messages via a handler callback.
 type Provider interface {
-	Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64, isEdit bool)) (int64, error)
+	Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64, isEdit bool), reactionHandler func(channel string, msgID int, from string, emoji string, date time.Time)) (int64, error)
 }
 
 // Run is the daemon core loop. It writes a PID file, polls the provider for
@@ -84,6 +85,33 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 				Channel:  channelDir,
 				Provider: msg.Provider,
 				Sender:   msg.From,
+			})
+		}
+	}, func(channel string, msgID int, from string, emoji string, date time.Time) {
+		msgIDStr := fmt.Sprintf("telegram-%d", msgID)
+		path, _, err := store.FindMessageByID(root, channel, msgIDStr, cfg.General.Format)
+		if err != nil {
+			log.Printf("reaction: message not found: %v", err)
+			return
+		}
+		if err := store.AppendReaction(path, date, from, emoji); err != nil {
+			log.Printf("reaction: append failed: %v", err)
+			return
+		}
+		origMsg, err := store.ReadMessage(path)
+		if err != nil {
+			log.Printf("reaction: read message for cursor reset: %v", err)
+			return
+		}
+		if err := store.ResetCursorIfNeeded(root, channel, origMsg.Date); err != nil {
+			log.Printf("reaction: cursor reset failed: %v", err)
+		}
+		if cb != nil {
+			cb.Run(CallbackEnv{
+				File:     path,
+				Channel:  channel,
+				Provider: "telegram",
+				Sender:   from,
 			})
 		}
 	})

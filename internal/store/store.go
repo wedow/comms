@@ -99,6 +99,22 @@ func AppendEdit(path string, editDate time.Time, newBody string) error {
 	return os.WriteFile(path, buf.Bytes(), 0o644)
 }
 
+// AppendReaction appends a reaction section to an existing message file.
+func AppendReaction(path string, reactionDate time.Time, from, emoji string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	buf.Write(data)
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		buf.WriteByte('\n')
+	}
+	fmt.Fprintf(&buf, "---reaction---\ndate: %s\nfrom: %s\nemoji: %s\n", reactionDate.Format(time.RFC3339), from, emoji)
+	return os.WriteFile(path, buf.Bytes(), 0o644)
+}
+
 // ResetCursorIfNeeded moves the cursor before msgDate if the cursor is currently after it.
 func ResetCursorIfNeeded(root, channel string, msgDate time.Time) error {
 	cursor, err := ReadCursor(root, channel)
