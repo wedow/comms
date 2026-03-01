@@ -31,7 +31,7 @@ func ExecCallback(command string, env CallbackEnv) error {
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 
-	go cmd.Start() //nolint:errcheck
+	go cmd.Run() //nolint:errcheck
 
 	return nil
 }
