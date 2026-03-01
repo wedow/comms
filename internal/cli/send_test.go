@@ -23,6 +23,10 @@ func (m *mockSendBot) SendMessage(ctx context.Context, params *bot.SendMessagePa
 	return m.sendFn(ctx, params)
 }
 
+func (m *mockSendBot) SetMessageReaction(_ context.Context, _ *bot.SetMessageReactionParams) (bool, error) {
+	return false, nil
+}
+
 func mockBotFactory(b telegram.BotAPI) func(string) (telegram.BotAPI, error) {
 	return func(_ string) (telegram.BotAPI, error) { return b, nil }
 }

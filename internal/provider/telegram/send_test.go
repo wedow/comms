@@ -18,6 +18,10 @@ func (m *mockBot) SendMessage(ctx context.Context, params *bot.SendMessageParams
 	return m.sendFn(ctx, params)
 }
 
+func (m *mockBot) SetMessageReaction(_ context.Context, _ *bot.SetMessageReactionParams) (bool, error) {
+	return false, nil
+}
+
 func TestSend(t *testing.T) {
 	t.Run("successful send", func(t *testing.T) {
 		m := &mockBot{sendFn: func(_ context.Context, _ *bot.SendMessageParams) (*models.Message, error) {
