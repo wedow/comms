@@ -1,6 +1,6 @@
 ---
 id: com-4nj4
-status: open
+status: closed
 deps: [com-1wlb]
 links: []
 created: 2026-03-01T13:17:30Z
