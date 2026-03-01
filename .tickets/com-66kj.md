@@ -1,6 +1,6 @@
 ---
 id: com-66kj
-status: open
+status: closed
 deps: [com-bx3c, com-1wlb]
 links: []
 created: 2026-03-01T13:18:06Z
