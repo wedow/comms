@@ -16,11 +16,59 @@ import (
 )
 
 type mockSendBot struct {
-	sendFn func(ctx context.Context, params *bot.SendMessageParams) (*models.Message, error)
+	sendFn      func(ctx context.Context, params *bot.SendMessageParams) (*models.Message, error)
+	sendPhotoFn func(ctx context.Context, params *bot.SendPhotoParams) (*models.Message, error)
+	sendDocFn   func(ctx context.Context, params *bot.SendDocumentParams) (*models.Message, error)
+	sendAudioFn func(ctx context.Context, params *bot.SendAudioParams) (*models.Message, error)
+	sendVideoFn func(ctx context.Context, params *bot.SendVideoParams) (*models.Message, error)
+	sendVoiceFn func(ctx context.Context, params *bot.SendVoiceParams) (*models.Message, error)
+	sendAnimFn  func(ctx context.Context, params *bot.SendAnimationParams) (*models.Message, error)
 }
 
 func (m *mockSendBot) SendMessage(ctx context.Context, params *bot.SendMessageParams) (*models.Message, error) {
 	return m.sendFn(ctx, params)
+}
+
+func (m *mockSendBot) SendPhoto(ctx context.Context, params *bot.SendPhotoParams) (*models.Message, error) {
+	if m.sendPhotoFn != nil {
+		return m.sendPhotoFn(ctx, params)
+	}
+	return nil, nil
+}
+
+func (m *mockSendBot) SendDocument(ctx context.Context, params *bot.SendDocumentParams) (*models.Message, error) {
+	if m.sendDocFn != nil {
+		return m.sendDocFn(ctx, params)
+	}
+	return nil, nil
+}
+
+func (m *mockSendBot) SendAudio(ctx context.Context, params *bot.SendAudioParams) (*models.Message, error) {
+	if m.sendAudioFn != nil {
+		return m.sendAudioFn(ctx, params)
+	}
+	return nil, nil
+}
+
+func (m *mockSendBot) SendVideo(ctx context.Context, params *bot.SendVideoParams) (*models.Message, error) {
+	if m.sendVideoFn != nil {
+		return m.sendVideoFn(ctx, params)
+	}
+	return nil, nil
+}
+
+func (m *mockSendBot) SendVoice(ctx context.Context, params *bot.SendVoiceParams) (*models.Message, error) {
+	if m.sendVoiceFn != nil {
+		return m.sendVoiceFn(ctx, params)
+	}
+	return nil, nil
+}
+
+func (m *mockSendBot) SendAnimation(ctx context.Context, params *bot.SendAnimationParams) (*models.Message, error) {
+	if m.sendAnimFn != nil {
+		return m.sendAnimFn(ctx, params)
+	}
+	return nil, nil
 }
 
 func (m *mockSendBot) SetMessageReaction(_ context.Context, _ *bot.SetMessageReactionParams) (bool, error) {
@@ -211,6 +259,130 @@ func TestSendCmd(t *testing.T) {
 		err := cmd.Execute()
 		if err == nil {
 			t.Fatal("expected error for invalid reply-to")
+		}
+		if !strings.Contains(errBuf.String(), `"error"`) {
+			t.Errorf("stderr = %q, want JSON error", errBuf.String())
+		}
+	})
+
+	t.Run("file flag sends media", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		// Create a temp file to send
+		tmpFile := filepath.Join(t.TempDir(), "photo.jpg")
+		os.WriteFile(tmpFile, []byte("fake image data"), 0o644)
+
+		var gotCaption string
+		mock := &mockSendBot{sendPhotoFn: func(_ context.Context, p *bot.SendPhotoParams) (*models.Message, error) {
+			gotCaption = p.Caption
+			return &models.Message{ID: 1, Chat: models.Chat{ID: 123}}, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader("my caption"))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root, "--file", tmpFile})
+
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("unexpected error: %v (stderr: %s)", err, errBuf.String())
+		}
+		if gotCaption != "my caption" {
+			t.Errorf("caption = %q, want %q", gotCaption, "my caption")
+		}
+		if !strings.Contains(out.String(), `"ok":true`) {
+			t.Errorf("stdout = %q, want ok:true", out.String())
+		}
+	})
+
+	t.Run("file flag with empty caption", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		tmpFile := filepath.Join(t.TempDir(), "doc.pdf")
+		os.WriteFile(tmpFile, []byte("fake pdf"), 0o644)
+
+		called := false
+		mock := &mockSendBot{sendDocFn: func(_ context.Context, p *bot.SendDocumentParams) (*models.Message, error) {
+			called = true
+			if p.Caption != "" {
+				t.Errorf("caption = %q, want empty", p.Caption)
+			}
+			return &models.Message{ID: 1, Chat: models.Chat{ID: 123}}, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader(""))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root, "--file", tmpFile})
+
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("unexpected error: %v (stderr: %s)", err, errBuf.String())
+		}
+		if !called {
+			t.Fatal("SendDocument was not called")
+		}
+	})
+
+	t.Run("media-type override", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		tmpFile := filepath.Join(t.TempDir(), "data.bin")
+		os.WriteFile(tmpFile, []byte("binary data"), 0o644)
+
+		called := false
+		mock := &mockSendBot{sendVideoFn: func(_ context.Context, _ *bot.SendVideoParams) (*models.Message, error) {
+			called = true
+			return &models.Message{ID: 1, Chat: models.Chat{ID: 123}}, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader(""))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root, "--file", tmpFile, "--media-type", "video"})
+
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("unexpected error: %v (stderr: %s)", err, errBuf.String())
+		}
+		if !called {
+			t.Fatal("SendVideo was not called for media-type override")
+		}
+	})
+
+	t.Run("file not found", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		mock := &mockSendBot{}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader(""))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root, "--file", "/nonexistent/file.jpg"})
+
+		err := cmd.Execute()
+		if err == nil {
+			t.Fatal("expected error for missing file")
 		}
 		if !strings.Contains(errBuf.String(), `"error"`) {
 			t.Errorf("stderr = %q, want JSON error", errBuf.String())

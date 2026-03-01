@@ -1,6 +1,6 @@
 ---
 id: com-yhpa
-status: open
+status: closed
 deps: [com-hyrn, com-vdst]
 links: []
 created: 2026-03-01T20:37:33Z

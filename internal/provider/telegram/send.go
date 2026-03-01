@@ -3,6 +3,8 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"io"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -40,6 +42,91 @@ func Send(ctx context.Context, api BotAPI, chatID int64, text string, replyToID 
 	}
 	if resp == nil {
 		return message.Message{}, fmt.Errorf("telegram send: nil response")
+	}
+	return convertMessage(resp), nil
+}
+
+// DetectMediaType maps a filename's extension to a Telegram media type.
+func DetectMediaType(filename string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".webp":
+		return "photo"
+	case ".gif":
+		return "animation"
+	case ".mp4", ".mov", ".avi":
+		return "video"
+	case ".mp3", ".flac", ".wav":
+		return "audio"
+	case ".ogg":
+		return "voice"
+	default:
+		return "document"
+	}
+}
+
+// SendMedia sends a media file to the given chat and returns the resulting message.
+func SendMedia(ctx context.Context, api BotAPI, chatID int64, file io.Reader, filename string, mediaType string, caption string, replyToID int) (message.Message, error) {
+	upload := &models.InputFileUpload{Filename: filename, Data: file}
+
+	var replyParams *models.ReplyParameters
+	if replyToID != 0 {
+		replyParams = &models.ReplyParameters{MessageID: replyToID}
+	}
+
+	var resp *models.Message
+	var err error
+
+	switch mediaType {
+	case "photo":
+		resp, err = api.SendPhoto(ctx, &bot.SendPhotoParams{
+			ChatID:          chatID,
+			Photo:           upload,
+			Caption:         caption,
+			ReplyParameters: replyParams,
+		})
+	case "video":
+		resp, err = api.SendVideo(ctx, &bot.SendVideoParams{
+			ChatID:          chatID,
+			Video:           upload,
+			Caption:         caption,
+			ReplyParameters: replyParams,
+		})
+	case "audio":
+		resp, err = api.SendAudio(ctx, &bot.SendAudioParams{
+			ChatID:          chatID,
+			Audio:           upload,
+			Caption:         caption,
+			ReplyParameters: replyParams,
+		})
+	case "voice":
+		resp, err = api.SendVoice(ctx, &bot.SendVoiceParams{
+			ChatID:          chatID,
+			Voice:           upload,
+			Caption:         caption,
+			ReplyParameters: replyParams,
+		})
+	case "animation":
+		resp, err = api.SendAnimation(ctx, &bot.SendAnimationParams{
+			ChatID:          chatID,
+			Animation:       upload,
+			Caption:         caption,
+			ReplyParameters: replyParams,
+		})
+	default:
+		resp, err = api.SendDocument(ctx, &bot.SendDocumentParams{
+			ChatID:          chatID,
+			Document:        upload,
+			Caption:         caption,
+			ReplyParameters: replyParams,
+		})
+	}
+
+	if err != nil {
+		return message.Message{}, fmt.Errorf("telegram send media: %w", err)
+	}
+	if resp == nil {
+		return message.Message{}, fmt.Errorf("telegram send media: nil response")
 	}
 	return convertMessage(resp), nil
 }

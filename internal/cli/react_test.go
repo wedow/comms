@@ -25,6 +25,30 @@ func (m *mockReactBot) SendMessage(ctx context.Context, params *bot.SendMessageP
 	return nil, errors.New("SendMessage not expected")
 }
 
+func (m *mockReactBot) SendPhoto(_ context.Context, _ *bot.SendPhotoParams) (*models.Message, error) {
+	return nil, nil
+}
+
+func (m *mockReactBot) SendDocument(_ context.Context, _ *bot.SendDocumentParams) (*models.Message, error) {
+	return nil, nil
+}
+
+func (m *mockReactBot) SendAudio(_ context.Context, _ *bot.SendAudioParams) (*models.Message, error) {
+	return nil, nil
+}
+
+func (m *mockReactBot) SendVideo(_ context.Context, _ *bot.SendVideoParams) (*models.Message, error) {
+	return nil, nil
+}
+
+func (m *mockReactBot) SendVoice(_ context.Context, _ *bot.SendVoiceParams) (*models.Message, error) {
+	return nil, nil
+}
+
+func (m *mockReactBot) SendAnimation(_ context.Context, _ *bot.SendAnimationParams) (*models.Message, error) {
+	return nil, nil
+}
+
 func (m *mockReactBot) SetMessageReaction(ctx context.Context, params *bot.SetMessageReactionParams) (bool, error) {
 	return m.reactFn(ctx, params)
 }
