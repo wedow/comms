@@ -1,6 +1,6 @@
 ---
 id: com-bz1j
-status: open
+status: closed
 deps: [com-ryd3]
 links: []
 created: 2026-03-01T13:17:51Z
