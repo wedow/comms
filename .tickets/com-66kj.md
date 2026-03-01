@@ -1,7 +1,7 @@
 ---
 id: com-66kj
 status: open
-deps: [com-bx3c, com-pjvo, com-1wlb]
+deps: [com-bx3c, com-1wlb]
 links: []
 created: 2026-03-01T13:18:06Z
 type: task
@@ -15,12 +15,36 @@ tags: [phase-2]
 Implement the shared `convertMessage` helper and the `Poll` function that starts long-polling for Telegram updates.
 
 ## Files
+- `internal/provider/telegram/slug.go` -- `SlugifyChat` function
+- `internal/provider/telegram/slug_test.go` -- table-driven tests for SlugifyChat
 - `internal/provider/telegram/convert.go` -- `convertMessage` helper
 - `internal/provider/telegram/convert_test.go` -- unit tests for the converter
 - `internal/provider/telegram/poll.go` -- `Poll` function
 - `internal/provider/telegram/poll_test.go` -- handler wiring tests using `ProcessUpdate`
 
 ## Implementation Notes
+
+### SlugifyChat
+Pure function that converts a Telegram `models.Chat` into a filesystem-safe channel name string.
+
+Signature:
+```go
+func SlugifyChat(chat models.Chat) string
+```
+
+Rules:
+1. Group/supergroup/channel -> slugify title: lowercase, replace `[^a-z0-9]` with `-`, collapse consecutive hyphens, trim leading/trailing hyphens.
+2. Private chat -> username if non-empty, else `dm-<chat-id>`.
+3. Empty title on a non-private chat -> fall back to `chat-<chat-id>`.
+
+Test cases (table-driven):
+- Group with title "My Cool Group" -> `my-cool-group`
+- Title with special chars "Alerts!!! & Stuff" -> `alerts-stuff`
+- Title with unicode -- strip non-ASCII -> hyphens collapsed
+- Private chat with username "alice" -> `alice`
+- Private chat without username, ID 12345 -> `dm-12345`
+- Group with empty title, ID 67890 -> `chat-67890`
+- Title with leading/trailing spaces and hyphens -> trimmed
 
 ### convertMessage
 Signature:

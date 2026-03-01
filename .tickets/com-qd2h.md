@@ -1,6 +1,6 @@
 ---
 id: com-qd2h
-status: open
+status: closed
 deps: [com-bx3c]
 links: []
 created: 2026-03-01T13:18:12Z

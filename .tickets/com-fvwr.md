@@ -1,7 +1,7 @@
 ---
 id: com-fvwr
 status: open
-deps: [com-gb3w, com-yvif]
+deps: [com-9par, com-yvif]
 links: []
 created: 2026-03-01T13:18:15Z
 type: task

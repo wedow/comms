@@ -1,6 +1,6 @@
 ---
 id: com-hm3d
-status: open
+status: closed
 deps: [com-b40d, com-1wlb, com-4nj4, com-9oxg, com-6qs4, com-yvif, com-m4l2, com-alwu]
 links: []
 created: 2026-03-01T13:18:25Z

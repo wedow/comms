@@ -1,6 +1,6 @@
 ---
 id: com-r8wx
-status: open
+status: closed
 deps: [com-9par, com-fvwr, com-hogs, com-yi8z, com-b40d]
 links: []
 created: 2026-03-01T13:18:43Z

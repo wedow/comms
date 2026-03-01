@@ -1,6 +1,6 @@
 ---
 id: com-2alb
-status: open
+status: closed
 deps: [com-ryd3]
 links: []
 created: 2026-03-01T13:18:07Z

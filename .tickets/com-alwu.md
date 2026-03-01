@@ -1,7 +1,7 @@
 ---
 id: com-alwu
 status: open
-deps: [com-b40d, com-9oxg, com-6qs4, com-m4l2]
+deps: [com-b40d, com-9oxg, com-6qs4]
 links: []
 created: 2026-03-01T13:18:20Z
 type: task
@@ -24,11 +24,21 @@ Behavior:
 Wire the subcommand into the Cobra root command.
 
 ## Files
+- `internal/embeddocs/embed.go` -- `//go:embed telegram-setup.md` as `var TelegramSetupDoc []byte`
+- `internal/embeddocs/telegram-setup.md` -- setup guide content
 - `internal/cli/init.go` -- init command definition and handler
 - `internal/cli/init_test.go` -- test: init creates expected directory tree, config.toml exists with defaults, docs deployed, second init doesn't clobber config
 
 ## Implementation Notes
-- Depends on Tasks 1.1 (CLI root), 1.4 (config), 1.5 (store), 1.7 (embeddocs)
+
+### Also: Embedded docs (build these first)
+- Create `internal/embeddocs/` package (named `embeddocs` not `embed` to avoid shadowing Go's built-in `embed` package)
+- Use `//go:embed telegram-setup.md` directive, export as `var TelegramSetupDoc []byte`
+- The telegram-setup.md content should cover: creating a Telegram bot via BotFather, obtaining the token, adding the bot to groups, configuring `config.toml`
+- Written for an AI agent reader (direct instructions, no screenshots)
+
+### Init command
+- Depends on Tasks 1.1 (CLI root), 1.4 (config), 1.5 (store)
 - `--dir` flag to override default `.comms/` directory
 - Must NOT overwrite existing `config.toml` (skip if exists)
 - Must ALWAYS overwrite docs (they may update between versions)

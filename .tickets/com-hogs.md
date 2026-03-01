@@ -1,7 +1,7 @@
 ---
 id: com-hogs
 status: open
-deps: [com-gb3w, com-yvif]
+deps: [com-9par, com-yvif]
 links: []
 created: 2026-03-01T13:18:25Z
 type: task
