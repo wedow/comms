@@ -1,6 +1,6 @@
 ---
 id: com-hogs
-status: open
+status: closed
 deps: [com-9par, com-yvif]
 links: []
 created: 2026-03-01T13:18:25Z

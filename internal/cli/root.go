@@ -27,6 +27,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newChannelsCmd())
 	cmd.AddCommand(newListCmd())
 	cmd.AddCommand(newDaemonCmd())
+	cmd.AddCommand(newUnreadCmd())
 	return cmd
 }
 
