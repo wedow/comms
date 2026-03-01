@@ -1,6 +1,6 @@
 ---
 id: com-hyrn
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-01T20:36:56Z
