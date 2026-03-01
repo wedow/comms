@@ -5,6 +5,7 @@ go 1.25.5
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/adrg/frontmatter v0.2.0
+	github.com/go-telegram/bot v1.19.0
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
 )
