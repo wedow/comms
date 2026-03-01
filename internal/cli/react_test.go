@@ -14,7 +14,7 @@ import (
 )
 
 type mockReactBot struct {
-	sendFn func(ctx context.Context, params *bot.SendMessageParams) (*models.Message, error)
+	sendFn  func(ctx context.Context, params *bot.SendMessageParams) (*models.Message, error)
 	reactFn func(ctx context.Context, params *bot.SetMessageReactionParams) (bool, error)
 }
 
@@ -28,6 +28,12 @@ func (m *mockReactBot) SendMessage(ctx context.Context, params *bot.SendMessageP
 func (m *mockReactBot) SetMessageReaction(ctx context.Context, params *bot.SetMessageReactionParams) (bool, error) {
 	return m.reactFn(ctx, params)
 }
+
+func (m *mockReactBot) GetFile(_ context.Context, _ *bot.GetFileParams) (*models.File, error) {
+	return nil, nil
+}
+
+func (m *mockReactBot) FileDownloadLink(_ *models.File) string { return "" }
 
 func mockReactBotFactory(b telegram.BotAPI) func(string) (telegram.BotAPI, error) {
 	return func(_ string) (telegram.BotAPI, error) { return b, nil }

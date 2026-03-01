@@ -31,4 +31,8 @@ type Message struct {
 	MediaGroupID string     `yaml:"media_group_id,omitempty"`
 	Entities     []Entity   `yaml:"entities,omitempty"`
 	Body         string     `yaml:"-"`
+
+	// Transient fields for media download (not serialized).
+	DownloadURL string `yaml:"-" json:"-"`
+	MediaExt    string `yaml:"-" json:"-"`
 }

@@ -12,4 +12,6 @@ import (
 type BotAPI interface {
 	SendMessage(ctx context.Context, params *bot.SendMessageParams) (*models.Message, error)
 	SetMessageReaction(ctx context.Context, params *bot.SetMessageReactionParams) (bool, error)
+	GetFile(ctx context.Context, params *bot.GetFileParams) (*models.File, error)
+	FileDownloadLink(f *models.File) string
 }

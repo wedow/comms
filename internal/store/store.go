@@ -115,6 +115,18 @@ func AppendReaction(path string, reactionDate time.Time, from, emoji string) err
 	return os.WriteFile(path, buf.Bytes(), 0o644)
 }
 
+// WriteMedia writes media data to <chanDir>/<timestamp>/<index>.<ext>.
+// Returns the absolute path of the written file.
+func WriteMedia(chanDir, timestamp string, index int, ext string, data []byte) (string, error) {
+	dir := filepath.Join(chanDir, timestamp)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	name := fmt.Sprintf("%03d%s", index, ext)
+	path := filepath.Join(dir, name)
+	return path, os.WriteFile(path, data, 0o644)
+}
+
 // ResetCursorIfNeeded moves the cursor before msgDate if the cursor is currently after it.
 func ResetCursorIfNeeded(root, channel string, msgDate time.Time) error {
 	cursor, err := ReadCursor(root, channel)

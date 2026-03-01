@@ -27,6 +27,12 @@ func (m *mockSendBot) SetMessageReaction(_ context.Context, _ *bot.SetMessageRea
 	return false, nil
 }
 
+func (m *mockSendBot) GetFile(_ context.Context, _ *bot.GetFileParams) (*models.File, error) {
+	return nil, nil
+}
+
+func (m *mockSendBot) FileDownloadLink(_ *models.File) string { return "" }
+
 func mockBotFactory(b telegram.BotAPI) func(string) (telegram.BotAPI, error) {
 	return func(_ string) (telegram.BotAPI, error) { return b, nil }
 }

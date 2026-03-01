@@ -296,6 +296,55 @@ func TestAppendReaction(t *testing.T) {
 	}
 }
 
+func TestWriteMedia(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".comms")
+	chanDir := filepath.Join(root, "telegram-general")
+	if err := os.MkdirAll(chanDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	ts := "2026-03-01T12-00-00Z"
+	data := []byte("fake image data")
+
+	path, err := WriteMedia(chanDir, ts, 1, ".jpg", data)
+	if err != nil {
+		t.Fatalf("WriteMedia: %v", err)
+	}
+
+	// Should be <chanDir>/<ts>/001.jpg
+	wantDir := filepath.Join(chanDir, ts)
+	if filepath.Dir(path) != wantDir {
+		t.Errorf("dir = %s, want %s", filepath.Dir(path), wantDir)
+	}
+	if filepath.Base(path) != "001.jpg" {
+		t.Errorf("base = %s, want 001.jpg", filepath.Base(path))
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(got) != string(data) {
+		t.Errorf("content = %q, want %q", got, data)
+	}
+}
+
+func TestWriteMediaNoExtension(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".comms")
+	chanDir := filepath.Join(root, "telegram-general")
+	if err := os.MkdirAll(chanDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	path, err := WriteMedia(chanDir, "2026-03-01T12-00-00Z", 1, "", []byte("data"))
+	if err != nil {
+		t.Fatalf("WriteMedia: %v", err)
+	}
+	if filepath.Base(path) != "001" {
+		t.Errorf("base = %s, want 001", filepath.Base(path))
+	}
+}
+
 func TestResetCursorIfNeeded(t *testing.T) {
 	root := filepath.Join(t.TempDir(), ".comms")
 	if err := InitDir(root); err != nil {

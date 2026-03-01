@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -322,5 +324,116 @@ func TestRunHandlesReaction(t *testing.T) {
 	}
 	if !cursor.Before(original.Date) {
 		t.Errorf("cursor %v should be before message date %v", cursor, original.Date)
+	}
+}
+
+func TestRunDownloadsMedia(t *testing.T) {
+	// Serve fake media content
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("fake-image-bytes"))
+	}))
+	defer ts.Close()
+
+	root := t.TempDir()
+	msg := message.Message{
+		From:        "alice",
+		Provider:    "telegram",
+		Channel:     "general",
+		Date:        time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+		ID:          "telegram-1",
+		Body:        "photo caption",
+		MediaType:   "photo",
+		MediaFileID: "abc123",
+		DownloadURL: ts.URL + "/file/bot/photos/file_0.jpg",
+		MediaExt:    ".jpg",
+	}
+
+	fp := &fakeProvider{
+		messages:    []message.Message{msg},
+		chatIDs:     []int64{123},
+		finalOffset: 10,
+	}
+
+	ctx := context.Background()
+	if err := Run(ctx, testConfig(), root, fp); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// Verify media file was downloaded
+	chanDir := filepath.Join(root, "telegram-general")
+	timestamp := strings.ReplaceAll(msg.Date.Format(time.RFC3339Nano), ":", "-")
+	mediaPath := filepath.Join(chanDir, timestamp, "001.jpg")
+	data, err := os.ReadFile(mediaPath)
+	if err != nil {
+		t.Fatalf("media file not found at %s: %v", mediaPath, err)
+	}
+	if string(data) != "fake-image-bytes" {
+		t.Errorf("media content = %q, want %q", data, "fake-image-bytes")
+	}
+
+	// Verify message file has media_url set
+	paths, err := store.ListMessages(root, "telegram-general")
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("expected 1 message file, got %d", len(paths))
+	}
+	written, err := store.ReadMessage(paths[0])
+	if err != nil {
+		t.Fatalf("ReadMessage: %v", err)
+	}
+	wantMediaURL := timestamp + "/001.jpg"
+	if written.MediaURL != wantMediaURL {
+		t.Errorf("MediaURL = %q, want %q", written.MediaURL, wantMediaURL)
+	}
+}
+
+func TestRunSkipsMediaOnDownloadError(t *testing.T) {
+	// Server that returns 500
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	root := t.TempDir()
+	msg := message.Message{
+		From:        "alice",
+		Provider:    "telegram",
+		Channel:     "general",
+		Date:        time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+		ID:          "telegram-1",
+		Body:        "photo caption",
+		MediaType:   "photo",
+		MediaFileID: "abc123",
+		DownloadURL: ts.URL + "/file/bot/photos/file_0.jpg",
+		MediaExt:    ".jpg",
+	}
+
+	fp := &fakeProvider{
+		messages:    []message.Message{msg},
+		chatIDs:     []int64{123},
+		finalOffset: 10,
+	}
+
+	ctx := context.Background()
+	if err := Run(ctx, testConfig(), root, fp); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// Message should still be written (without media_url)
+	paths, err := store.ListMessages(root, "telegram-general")
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("expected 1 message file, got %d", len(paths))
+	}
+	written, err := store.ReadMessage(paths[0])
+	if err != nil {
+		t.Fatalf("ReadMessage: %v", err)
+	}
+	if written.MediaURL != "" {
+		t.Errorf("MediaURL = %q, want empty on download error", written.MediaURL)
 	}
 }

@@ -3,7 +3,11 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/wedow/comms/internal/config"
@@ -72,6 +76,12 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 			return
 		}
 
+		if msg.DownloadURL != "" {
+			if err := downloadMedia(root, channelDir, &msg); err != nil {
+				log.Printf("media: download failed: %v", err)
+			}
+		}
+
 		filePath, err := store.WriteMessage(root, msg, cfg.General.Format)
 		if err != nil {
 			log.Printf("failed to write message: %v", err)
@@ -120,4 +130,38 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 	}
 
 	return store.WriteOffset(root, "telegram", finalOffset)
+}
+
+// downloadMedia fetches media from msg.DownloadURL, saves it via store.WriteMedia,
+// and sets msg.MediaURL to the relative path within the channel directory.
+func downloadMedia(root, channelDir string, msg *message.Message) error {
+	resp, err := http.Get(msg.DownloadURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download %s: status %d", msg.DownloadURL, resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	timestamp := strings.ReplaceAll(msg.Date.Format(time.RFC3339Nano), ":", "-")
+	chanPath := filepath.Join(root, channelDir)
+	path, err := store.WriteMedia(chanPath, timestamp, 1, msg.MediaExt, data)
+	if err != nil {
+		return err
+	}
+
+	// MediaURL is the relative path within the channel directory
+	rel, err := filepath.Rel(chanPath, path)
+	if err != nil {
+		return err
+	}
+	msg.MediaURL = rel
+	return nil
 }

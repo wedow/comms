@@ -22,6 +22,12 @@ func (m *mockBot) SetMessageReaction(_ context.Context, _ *bot.SetMessageReactio
 	return false, nil
 }
 
+func (m *mockBot) GetFile(_ context.Context, _ *bot.GetFileParams) (*models.File, error) {
+	return nil, nil
+}
+
+func (m *mockBot) FileDownloadLink(_ *models.File) string { return "" }
+
 func TestSend(t *testing.T) {
 	t.Run("successful send", func(t *testing.T) {
 		m := &mockBot{sendFn: func(_ context.Context, _ *bot.SendMessageParams) (*models.Message, error) {
