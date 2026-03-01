@@ -1,0 +1,11 @@
+pkgbase = comms-bin
+	pkgdesc = Filesystem-based messaging interface for AI agents
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/wedow/comms
+	arch = x86_64
+	license = MIT
+	source = https://github.com/wedow/comms/releases/download/v0.1.0/comms_0.1.0_linux_amd64.tar.gz
+	sha256sums = SKIP
+
+pkgname = comms-bin

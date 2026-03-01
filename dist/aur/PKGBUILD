@@ -1,0 +1,32 @@
+# Maintainer: wedow <https://github.com/wedow>
+pkgname=comms-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Filesystem-based messaging interface for AI agents"
+arch=('x86_64')
+url="https://github.com/wedow/comms"
+license=('MIT')
+depends=()
+source=("https://github.com/wedow/comms/releases/download/v${pkgver}/comms_${pkgver}_linux_amd64.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+    install -Dm755 comms "$pkgdir/usr/bin/comms"
+
+    install -Dm644 /dev/stdin "$pkgdir/usr/lib/systemd/user/comms.service" <<'EOF'
+[Unit]
+Description=comms messaging daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/comms daemon start
+WorkingDirectory=%h
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+}

@@ -1,6 +1,6 @@
 ---
 id: com-fv67
-status: open
+status: closed
 deps: [com-m4pe]
 links: []
 created: 2026-03-01T13:18:16Z
