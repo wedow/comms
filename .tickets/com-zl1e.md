@@ -1,6 +1,6 @@
 ---
 id: com-zl1e
-status: open
+status: closed
 deps: [com-qtjh, com-9oxg]
 links: []
 created: 2026-03-01T13:18:13Z
