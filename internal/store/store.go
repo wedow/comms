@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -61,4 +62,51 @@ func ReadMessage(path string) (message.Message, error) {
 	default:
 		return message.Message{}, fmt.Errorf("unknown extension: %s", filepath.Ext(path))
 	}
+}
+
+// FindMessageByID scans message files in the channel directory for a matching ID.
+// Returns the file path and parsed message, or an error if not found.
+func FindMessageByID(root, channel, id, format string) (string, message.Message, error) {
+	paths, err := ListMessages(root, channel)
+	if err != nil {
+		return "", message.Message{}, err
+	}
+	for _, p := range paths {
+		msg, err := ReadMessage(p)
+		if err != nil {
+			continue
+		}
+		if msg.ID == id {
+			return p, msg, nil
+		}
+	}
+	return "", message.Message{}, fmt.Errorf("message %s not found in %s", id, channel)
+}
+
+// AppendEdit appends an edit section to an existing message file.
+func AppendEdit(path string, editDate time.Time, newBody string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	buf.Write(data)
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		buf.WriteByte('\n')
+	}
+	fmt.Fprintf(&buf, "---edit---\ndate: %s\n%s\n", editDate.Format(time.RFC3339), newBody)
+	return os.WriteFile(path, buf.Bytes(), 0o644)
+}
+
+// ResetCursorIfNeeded moves the cursor before msgDate if the cursor is currently after it.
+func ResetCursorIfNeeded(root, channel string, msgDate time.Time) error {
+	cursor, err := ReadCursor(root, channel)
+	if err != nil {
+		return err
+	}
+	if cursor.IsZero() || cursor.Before(msgDate) {
+		return nil
+	}
+	return WriteCursor(root, channel, msgDate.Add(-time.Nanosecond))
 }

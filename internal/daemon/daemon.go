@@ -12,7 +12,7 @@ import (
 
 // Provider abstracts a message source that delivers messages via a handler callback.
 type Provider interface {
-	Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64)) (int64, error)
+	Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64, isEdit bool)) (int64, error)
 }
 
 // Run is the daemon core loop. It writes a PID file, polls the provider for
@@ -34,8 +34,43 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 		cb = NewCallbackRunner(cfg.Callback.Command, delay)
 	}
 
-	finalOffset, err := p.Poll(ctx, offset, func(msg message.Message, chatID int64) {
+	finalOffset, err := p.Poll(ctx, offset, func(msg message.Message, chatID int64, isEdit bool) {
 		channelDir := msg.Provider + "-" + msg.Channel
+
+		if isEdit {
+			path, _, err := store.FindMessageByID(root, channelDir, msg.ID, cfg.General.Format)
+			if err != nil {
+				log.Printf("edit: message not found: %v", err)
+				return
+			}
+			editDate := time.Now().UTC()
+			if msg.EditDate != nil {
+				editDate = *msg.EditDate
+			}
+			if err := store.AppendEdit(path, editDate, msg.Body); err != nil {
+				log.Printf("edit: append failed: %v", err)
+				return
+			}
+			// Find original message date from filename for cursor reset
+			origMsg, err := store.ReadMessage(path)
+			if err != nil {
+				log.Printf("edit: read message for cursor reset: %v", err)
+				return
+			}
+			if err := store.ResetCursorIfNeeded(root, channelDir, origMsg.Date); err != nil {
+				log.Printf("edit: cursor reset failed: %v", err)
+			}
+			if cb != nil {
+				cb.Run(CallbackEnv{
+					File:     path,
+					Channel:  channelDir,
+					Provider: msg.Provider,
+					Sender:   msg.From,
+				})
+			}
+			return
+		}
+
 		filePath, err := store.WriteMessage(root, msg, cfg.General.Format)
 		if err != nil {
 			log.Printf("failed to write message: %v", err)

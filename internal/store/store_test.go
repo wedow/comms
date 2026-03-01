@@ -165,3 +165,134 @@ func TestReadMessageUnknownExtension(t *testing.T) {
 		t.Fatal("expected error for unknown extension, got nil")
 	}
 }
+
+func TestFindMessageByID(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".comms")
+	if err := InitDir(root); err != nil {
+		t.Fatalf("InitDir: %v", err)
+	}
+
+	msgs := []message.Message{
+		{From: "alice", Provider: "telegram", Channel: "general", Date: time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC), ID: "telegram-10", Body: "first"},
+		{From: "bob", Provider: "telegram", Channel: "general", Date: time.Date(2026, 3, 1, 12, 1, 0, 0, time.UTC), ID: "telegram-20", Body: "second"},
+		{From: "carol", Provider: "telegram", Channel: "general", Date: time.Date(2026, 3, 1, 12, 2, 0, 0, time.UTC), ID: "telegram-30", Body: "third"},
+	}
+
+	for _, m := range msgs {
+		if _, err := WriteMessage(root, m, "markdown"); err != nil {
+			t.Fatalf("WriteMessage: %v", err)
+		}
+	}
+
+	// Find existing message
+	path, msg, err := FindMessageByID(root, "telegram-general", "telegram-20", "markdown")
+	if err != nil {
+		t.Fatalf("FindMessageByID: %v", err)
+	}
+	if msg.ID != "telegram-20" {
+		t.Errorf("ID = %q, want telegram-20", msg.ID)
+	}
+	if path == "" {
+		t.Error("path is empty")
+	}
+
+	// Not found
+	_, _, err = FindMessageByID(root, "telegram-general", "telegram-99", "markdown")
+	if err == nil {
+		t.Fatal("expected error for missing ID, got nil")
+	}
+}
+
+func TestAppendEdit(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".comms")
+	if err := InitDir(root); err != nil {
+		t.Fatalf("InitDir: %v", err)
+	}
+
+	msg := message.Message{
+		From:     "alice",
+		Provider: "telegram",
+		Channel:  "general",
+		Date:     time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+		ID:       "telegram-10",
+		Body:     "original text",
+	}
+	path, err := WriteMessage(root, msg, "markdown")
+	if err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+
+	editDate := time.Date(2026, 3, 1, 12, 5, 0, 0, time.UTC)
+	if err := AppendEdit(path, editDate, "edited text"); err != nil {
+		t.Fatalf("AppendEdit: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "---edit---") {
+		t.Error("missing ---edit--- separator")
+	}
+	if !strings.Contains(content, "date: 2026-03-01T12:05:00Z") {
+		t.Error("missing edit date")
+	}
+	if !strings.Contains(content, "edited text") {
+		t.Error("missing edited body")
+	}
+	// Original content should still be there
+	if !strings.Contains(content, "original text") {
+		t.Error("missing original body")
+	}
+}
+
+func TestResetCursorIfNeeded(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".comms")
+	if err := InitDir(root); err != nil {
+		t.Fatalf("InitDir: %v", err)
+	}
+
+	channel := "telegram-general"
+	chanDir := filepath.Join(root, channel)
+	if err := os.MkdirAll(chanDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	msgDate := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
+
+	// Cursor past the message
+	cursorTime := time.Date(2026, 3, 1, 13, 0, 0, 0, time.UTC)
+	if err := WriteCursor(root, channel, cursorTime); err != nil {
+		t.Fatalf("WriteCursor: %v", err)
+	}
+
+	if err := ResetCursorIfNeeded(root, channel, msgDate); err != nil {
+		t.Fatalf("ResetCursorIfNeeded: %v", err)
+	}
+
+	got, err := ReadCursor(root, channel)
+	if err != nil {
+		t.Fatalf("ReadCursor: %v", err)
+	}
+	if !got.Before(msgDate) {
+		t.Errorf("cursor %v should be before message date %v", got, msgDate)
+	}
+
+	// Cursor before the message should not change
+	earlyTime := time.Date(2026, 3, 1, 11, 0, 0, 0, time.UTC)
+	if err := WriteCursor(root, channel, earlyTime); err != nil {
+		t.Fatalf("WriteCursor: %v", err)
+	}
+	if err := ResetCursorIfNeeded(root, channel, msgDate); err != nil {
+		t.Fatalf("ResetCursorIfNeeded: %v", err)
+	}
+	got, err = ReadCursor(root, channel)
+	if err != nil {
+		t.Fatalf("ReadCursor: %v", err)
+	}
+	if !got.Equal(earlyTime) {
+		t.Errorf("cursor = %v, want unchanged %v", got, earlyTime)
+	}
+}

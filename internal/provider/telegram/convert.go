@@ -72,6 +72,11 @@ func convertMessage(m *models.Message) message.Message {
 		msg.MediaGroupID = m.MediaGroupID
 	}
 
+	if m.EditDate != 0 {
+		t := time.Unix(int64(m.EditDate), 0).UTC()
+		msg.EditDate = &t
+	}
+
 	if m.ForwardOrigin != nil {
 		var fwdFrom string
 		var fwdDate int

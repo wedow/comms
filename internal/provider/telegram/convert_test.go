@@ -557,4 +557,36 @@ func TestConvertMessage(t *testing.T) {
 	}
 }
 
+func TestConvertMessageEditDate(t *testing.T) {
+	msg := &models.Message{
+		ID:       80,
+		From:     &models.User{Username: "alice"},
+		Date:     1709312400,
+		EditDate: 1709312500,
+		Chat:     models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+		Text:     "edited text",
+	}
+	got := convertMessage(msg)
+	if got.EditDate == nil {
+		t.Fatal("EditDate is nil, want non-nil")
+	}
+	want := time.Unix(1709312500, 0).UTC()
+	if !got.EditDate.Equal(want) {
+		t.Errorf("EditDate = %v, want %v", *got.EditDate, want)
+	}
+
+	// Zero EditDate should remain nil
+	msg2 := &models.Message{
+		ID:   81,
+		From: &models.User{Username: "bob"},
+		Date: 1000,
+		Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+		Text: "not edited",
+	}
+	got2 := convertMessage(msg2)
+	if got2.EditDate != nil {
+		t.Errorf("EditDate = %v, want nil", got2.EditDate)
+	}
+}
+
 func timePtr(t time.Time) *time.Time { return &t }

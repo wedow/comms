@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,12 +16,17 @@ import (
 type fakeProvider struct {
 	messages    []message.Message
 	chatIDs     []int64
+	isEdits     []bool
 	finalOffset int64
 }
 
-func (f *fakeProvider) Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64)) (int64, error) {
+func (f *fakeProvider) Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64, isEdit bool)) (int64, error) {
 	for i, msg := range f.messages {
-		handler(msg, f.chatIDs[i])
+		isEdit := false
+		if i < len(f.isEdits) {
+			isEdit = f.isEdits[i]
+		}
+		handler(msg, f.chatIDs[i], isEdit)
 	}
 	return f.finalOffset, nil
 }
@@ -155,5 +161,81 @@ func TestRunRemovesPIDOnExit(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(root, "daemon.pid")); !os.IsNotExist(err) {
 		t.Error("PID file should be removed after Run exits")
+	}
+}
+
+func TestRunHandlesEditedMessage(t *testing.T) {
+	root := t.TempDir()
+
+	// First, write an original message
+	original := message.Message{
+		From:     "alice",
+		Provider: "telegram",
+		Channel:  "general",
+		Date:     time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+		ID:       "telegram-42",
+		Body:     "original text",
+	}
+	if _, err := store.WriteMessage(root, original, "markdown"); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+
+	// Advance cursor past the message
+	if err := store.WriteCursor(root, "telegram-general", time.Date(2026, 3, 1, 13, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("WriteCursor: %v", err)
+	}
+
+	// Now simulate an edit coming through
+	editDate := time.Date(2026, 3, 1, 12, 5, 0, 0, time.UTC)
+	edited := message.Message{
+		From:     "alice",
+		Provider: "telegram",
+		Channel:  "general",
+		Date:     time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+		ID:       "telegram-42",
+		EditDate: &editDate,
+		Body:     "edited text",
+	}
+
+	fp := &fakeProvider{
+		messages:    []message.Message{edited},
+		chatIDs:     []int64{123},
+		isEdits:     []bool{true},
+		finalOffset: 50,
+	}
+
+	ctx := context.Background()
+	if err := Run(ctx, testConfig(), root, fp); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// Verify the edit was appended (find the message file)
+	paths, err := store.ListMessages(root, "telegram-general")
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("expected 1 message file, got %d", len(paths))
+	}
+
+	data, err := os.ReadFile(paths[0])
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "---edit---") {
+		t.Error("missing ---edit--- in file after edit")
+	}
+	if !strings.Contains(content, "edited text") {
+		t.Error("missing edited text in file")
+	}
+
+	// Verify cursor was reset
+	cursor, err := store.ReadCursor(root, "telegram-general")
+	if err != nil {
+		t.Fatalf("ReadCursor: %v", err)
+	}
+	if !cursor.Before(original.Date) {
+		t.Errorf("cursor %v should be before message date %v", cursor, original.Date)
 	}
 }
