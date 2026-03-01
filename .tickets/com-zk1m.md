@@ -1,6 +1,6 @@
 ---
 id: com-zk1m
-status: open
+status: closed
 deps: [com-hyrn, com-2bzb]
 links: []
 created: 2026-03-01T20:37:08Z

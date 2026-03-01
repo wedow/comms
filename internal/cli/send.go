@@ -56,7 +56,16 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 				return err
 			}
 
-			if _, err := telegram.Send(cmd.Context(), api, chatID, body); err != nil {
+			replyToID := 0
+			if replyTo, _ := cmd.Flags().GetString("reply-to"); replyTo != "" {
+				replyToID, err = telegram.ParseMessageID(replyTo)
+				if err != nil {
+					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
+					return err
+				}
+			}
+
+			if _, err := telegram.Send(cmd.Context(), api, chatID, body, replyToID); err != nil {
 				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
 				return err
 			}
@@ -66,6 +75,7 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 	}
 	cmd.Flags().String("dir", ".comms", "root directory")
 	cmd.Flags().String("channel", "", "channel to send to")
+	cmd.Flags().String("reply-to", "", "message ID to reply to")
 	_ = cmd.MarkFlagRequired("channel")
 	return cmd
 }

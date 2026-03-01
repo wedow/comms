@@ -30,7 +30,7 @@ func TestSend(t *testing.T) {
 			}, nil
 		}}
 
-		got, err := Send(context.Background(), m, 123, "hello")
+		got, err := Send(context.Background(), m, 123, "hello", 0)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -59,7 +59,7 @@ func TestSend(t *testing.T) {
 			return nil, errors.New("network timeout")
 		}}
 
-		_, err := Send(context.Background(), m, 456, "fail")
+		_, err := Send(context.Background(), m, 456, "fail", 0)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -70,9 +70,70 @@ func TestSend(t *testing.T) {
 			return nil, nil
 		}}
 
-		_, err := Send(context.Background(), m, 789, "nil")
+		_, err := Send(context.Background(), m, 789, "nil", 0)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})
+
+	t.Run("with reply", func(t *testing.T) {
+		var gotParams *bot.SendMessageParams
+		m := &mockBot{sendFn: func(_ context.Context, p *bot.SendMessageParams) (*models.Message, error) {
+			gotParams = p
+			return &models.Message{ID: 99, Chat: models.Chat{ID: 123}, Text: "reply"}, nil
+		}}
+
+		_, err := Send(context.Background(), m, 123, "reply", 42)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotParams.ReplyParameters == nil {
+			t.Fatal("ReplyParameters is nil, want non-nil")
+		}
+		if gotParams.ReplyParameters.MessageID != 42 {
+			t.Errorf("ReplyParameters.MessageID = %d, want 42", gotParams.ReplyParameters.MessageID)
+		}
+	})
+
+	t.Run("without reply", func(t *testing.T) {
+		var gotParams *bot.SendMessageParams
+		m := &mockBot{sendFn: func(_ context.Context, p *bot.SendMessageParams) (*models.Message, error) {
+			gotParams = p
+			return &models.Message{ID: 100, Chat: models.Chat{ID: 123}, Text: "no reply"}, nil
+		}}
+
+		_, err := Send(context.Background(), m, 123, "no reply", 0)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotParams.ReplyParameters != nil {
+			t.Errorf("ReplyParameters = %+v, want nil", gotParams.ReplyParameters)
+		}
+	})
+}
+
+func TestParseMessageID(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    int
+		wantErr bool
+	}{
+		{"valid", "telegram-42", 42, false},
+		{"no prefix", "abc", 0, true},
+		{"empty suffix", "telegram-", 0, true},
+		{"non-numeric suffix", "telegram-abc", 0, true},
+		{"empty string", "", 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseMessageID(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ParseMessageID(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Errorf("ParseMessageID(%q) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
 }

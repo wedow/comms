@@ -148,4 +148,62 @@ func TestSendCmd(t *testing.T) {
 			t.Errorf("stderr = %q, want JSON error", errBuf.String())
 		}
 	})
+
+	t.Run("reply-to sets ReplyParameters", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		var gotParams *bot.SendMessageParams
+		mock := &mockSendBot{sendFn: func(_ context.Context, p *bot.SendMessageParams) (*models.Message, error) {
+			gotParams = p
+			return &models.Message{ID: 1, Chat: models.Chat{ID: 123}, Text: p.Text}, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader("reply text"))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root, "--reply-to", "telegram-99"})
+
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotParams.ReplyParameters == nil {
+			t.Fatal("ReplyParameters is nil, want non-nil")
+		}
+		if gotParams.ReplyParameters.MessageID != 99 {
+			t.Errorf("ReplyParameters.MessageID = %d, want 99", gotParams.ReplyParameters.MessageID)
+		}
+	})
+
+	t.Run("invalid reply-to format", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		mock := &mockSendBot{sendFn: func(_ context.Context, _ *bot.SendMessageParams) (*models.Message, error) {
+			t.Fatal("SendMessage should not be called with invalid reply-to")
+			return nil, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader("hello"))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root, "--reply-to", "bad-id"})
+
+		err := cmd.Execute()
+		if err == nil {
+			t.Fatal("expected error for invalid reply-to")
+		}
+		if !strings.Contains(errBuf.String(), `"error"`) {
+			t.Errorf("stderr = %q, want JSON error", errBuf.String())
+		}
+	})
 }
