@@ -1,0 +1,48 @@
+version: 2
+
+builds:
+  - main: ./cmd/comms
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
+
+archives:
+  - format: tar.gz
+    files:
+      - LICENSE*
+      - README*
+
+checksum:
+  algorithm: sha256
+
+release:
+  github:
+
+changelog:
+  use: github-native
+
+snapshot:
+  name_template: '{{ .Version }}-snapshot-{{ .ShortCommit }}'
+
+brews:
+  - repository:
+      owner: wedow
+      name: homebrew-tools
+    directory: Formula
+    homepage: https://github.com/wedow/comms
+    description: Filesystem-based messaging interface for AI agents
+    license: MIT
+    install: |
+      bin.install "comms"
+    service: |
+      run [opt_bin/"comms", "daemon", "start"]
+      keep_alive true
+      working_dir Dir.home
+      log_path var/"log/comms.log"
+      error_log_path var/"log/comms.log"

@@ -1,6 +1,6 @@
 ---
 id: com-ryd3
-status: open
+status: closed
 deps: [com-b40d]
 links: []
 created: 2026-03-01T13:17:43Z
