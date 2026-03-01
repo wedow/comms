@@ -10,7 +10,7 @@ Leaf packages and project scaffolding. Everything here has zero project-internal
 - `cmd/comms/main.go` -- calls `cli.Execute()`
 - `internal/cli/root.go` -- Cobra root command (name "comms", short description, version flag)
 
-**Dependencies:** none
+**Dependencies:** none (run `go get github.com/spf13/cobra` before building)
 
 **Verification:**
 ```sh
@@ -48,7 +48,7 @@ Use `gopkg.in/yaml.v3` for frontmatter writing and `github.com/adrg/frontmatter`
 - `internal/message/markdown.go` -- MarshalMarkdown / UnmarshalMarkdown
 - `internal/message/markdown_test.go` -- round-trip tests, edge cases (empty body, multiline body, special characters in fields)
 
-**Dependencies:** none
+**Dependencies:** none (run `go get gopkg.in/yaml.v3 github.com/adrg/frontmatter` before building)
 
 **Verification:**
 ```sh
@@ -122,7 +122,7 @@ Use `github.com/BurntSushi/toml` for parsing.
 - `internal/config/config.go` -- struct, Load, Default
 - `internal/config/config_test.go` -- tests: load from file, env var override, defaults, missing file error
 
-**Dependencies:** none
+**Dependencies:** none (run `go get github.com/BurntSushi/toml` before building)
 
 **Verification:**
 ```sh
@@ -189,20 +189,20 @@ go test ./internal/store/... -run 'TestCursor|TestList' -v
 
 ## Task 1.7: Embedded docs
 
-**Description:** Create the `embed/` directory with `telegram-setup.md` -- the setup guide that `comms init` deploys to `.comms/docs/`. Use Go's `//go:embed` directive to bundle the file into the binary.
+**Description:** Create the `internal/embeddocs/` directory with `telegram-setup.md` -- the setup guide that `comms init` deploys to `.comms/docs/`. Use Go's `//go:embed` directive to bundle the file into the binary. The package is named `embeddocs` (not `embed`) to avoid shadowing Go's built-in `embed` package.
 
 The guide covers: creating a Telegram bot via BotFather, obtaining the token, adding the bot to groups, and configuring `config.toml`. Written for an AI agent reader (direct instructions, no screenshots).
 
 **Files:**
-- `embed/embed.go` -- `//go:embed telegram-setup.md` as `var TelegramSetupDoc []byte` (or `string`)
-- `embed/telegram-setup.md` -- setup guide content
+- `internal/embeddocs/embed.go` -- `//go:embed telegram-setup.md` as `var TelegramSetupDoc []byte` (or `string`)
+- `internal/embeddocs/telegram-setup.md` -- setup guide content
 
 **Dependencies:** none
 
 **Verification:**
 ```sh
-go build ./embed
-go vet ./embed
+go build ./internal/embeddocs
+go vet ./internal/embeddocs
 ```
 
 **Pass/fail:** Package builds and vets without error.
@@ -217,7 +217,7 @@ Behavior:
 1. Resolve root as `.comms/` in the current working directory (or a `--dir` flag).
 2. Call `store.InitDir(root)`.
 3. Write `config.Default()` as TOML to `root/config.toml`. Skip if file already exists (don't overwrite user config).
-4. Write `embed.TelegramSetupDoc` to `root/docs/telegram-setup.md`. Always overwrite (docs may update between versions).
+4. Write `embeddocs.TelegramSetupDoc` to `root/docs/telegram-setup.md`. Always overwrite (docs may update between versions).
 5. Print JSON `{"status":"initialized","path":"<abs path>"}` to stdout.
 
 Wire the subcommand into the Cobra root command.
@@ -240,7 +240,7 @@ go build ./cmd/comms && ./cmd/comms init --help | grep -q 'init'
 
 ## Task 1.9: External dependencies and go.sum
 
-**Description:** Add all external dependencies needed by Phase 1. Run `go mod tidy` to populate `go.sum`. Verify the full project compiles and all tests pass.
+**Description:** Final dependency sanity check. Each earlier task `go get`s its own dependencies as needed; this task runs `go mod tidy` to clean up `go.mod`/`go.sum` and verifies the full project compiles and all tests pass.
 
 **Files:**
 - `go.mod` (updated with dependencies)

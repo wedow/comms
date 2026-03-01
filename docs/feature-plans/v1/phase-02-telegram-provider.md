@@ -41,14 +41,8 @@ type BotAPI interface {
 }
 ```
 
-Also define a factory type for dependency injection:
-```go
-// NewBotFunc creates a BotAPI from a token.
-type NewBotFunc func(token string, opts ...bot.Option) (BotAPI, error)
-```
-
 **Files:**
-- `internal/provider/telegram/telegram.go` -- package doc, BotAPI interface, NewBotFunc type
+- `internal/provider/telegram/telegram.go` -- package doc, BotAPI interface
 - `internal/provider/telegram/telegram_test.go` -- placeholder (confirms package compiles)
 
 **Dependencies:** Task 2.6 (go-telegram/bot dependency must be in go.mod)
@@ -114,8 +108,8 @@ Field mapping (in `convertMessage`):
 - `From`: `msg.From.Username` (or `msg.From.FirstName` if username empty, or `"unknown"` if From nil)
 - `Provider`: `"telegram"`
 - `Channel`: `SlugifyChat(msg.Chat)`
-- `Date`: `time.Unix(msg.Date, 0).UTC()`
-- `ID`: `fmt.Sprintf("telegram-%d", msg.MessageID)`
+- `Date`: `time.Unix(int64(msg.Date), 0).UTC()`
+- `ID`: `fmt.Sprintf("telegram-%d", msg.ID)`
 - `Body`: `msg.Text`
 
 **Files:**
@@ -155,8 +149,8 @@ func Poll(ctx context.Context, token string, initialOffset int64, handler func(m
 Note: the handler receives `chatID int64` alongside the message so the daemon can maintain its chat registry without re-parsing.
 
 Poll behavior:
-1. Construct a `*bot.Bot` using `bot.New(token, opts...)` with a default handler that converts updates.
-2. The default handler, for each update where `update.Message != nil`: build a `message.Message` via `convertMessage`, track `update.UpdateID + 1` as the next offset, call `handler(msg, update.Message.Chat.ID)`.
+1. Construct a `*bot.Bot` using `bot.New(token, bot.WithSkipGetMe(), bot.WithInitialOffset(initialOffset), ...)` with a default handler that converts updates. Note: `bot.WithInitialOffset(initialOffset)` sets the starting offset for polling so the bot resumes from where it left off.
+2. The default handler, for each update where `update.Message != nil`: build a `message.Message` via `convertMessage`, track `update.ID + 1` as the next offset, call `handler(msg, update.Message.Chat.ID)`.
 3. Call `b.Start(ctx)` -- blocks until ctx is cancelled.
 4. Return the last tracked offset.
 
@@ -199,7 +193,7 @@ cd /home/greg/p/comms && go test ./internal/provider/telegram/ -run TestPoll -v
 func NewBot(token string) (BotAPI, error)
 ```
 
-Since `*bot.Bot` already satisfies `BotAPI` (it has `SendMessage`), this is a one-liner plus error handling.
+Since `*bot.Bot` already satisfies `BotAPI` (it has `SendMessage`), this is a one-liner plus error handling. Pass `bot.WithSkipGetMe()` to avoid an unnecessary `getMe` network call on construction.
 
 **Files:**
 - `internal/provider/telegram/bot.go` -- `NewBot` function
@@ -254,13 +248,13 @@ Task 2.1 (interface + skeleton)
   +---> Task 2.5 (NewBot factory)
 ```
 
-Tasks 2.2 and 2.5 can proceed in parallel after 2.1. Tasks 2.3 and 2.4 depend on 2.2 but are independent of each other (though 2.3 uses convertMessage from 2.4).
+Tasks 2.2 and 2.5 can proceed in parallel after 2.1. Task 2.4 depends on 2.2. Task 2.3 depends on both 2.2 and 2.4 (it uses `convertMessage` from 2.4), so 2.4 must be completed before 2.3.
 
 ## Files Created in This Phase
 
 | File | Purpose |
 |------|---------|
-| `internal/provider/telegram/telegram.go` | Package doc, BotAPI interface, NewBotFunc type |
+| `internal/provider/telegram/telegram.go` | Package doc, BotAPI interface |
 | `internal/provider/telegram/telegram_test.go` | Compilation smoke test |
 | `internal/provider/telegram/slug.go` | SlugifyChat function |
 | `internal/provider/telegram/slug_test.go` | Slug tests |

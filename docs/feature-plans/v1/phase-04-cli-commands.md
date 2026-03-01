@@ -66,17 +66,18 @@ cd /home/greg/p/comms && go test ./internal/cli/ -run TestChannels -v
 Flags:
 - `--channel <name>` -- optional, filter to a single channel directory
 
+`--channel` takes the full channel directory name as shown by `comms channels` (e.g., `telegram-general`).
+
 Output per line (all fields from `message.Message` struct plus file path):
 ```json
 {"from":"alice","provider":"telegram","channel":"general","date":"2026-02-24T14:30:05Z","id":"telegram-98765","body":"Hey, the deploy finished.","file":".comms/telegram-general/2026-02-24T14-30-05.123.md"}
 ```
 
 Flow:
-1. Load config to determine message format (markdown or org)
-2. Call `store.ListChannels()` (or filter to `--channel`)
-3. For each channel, call `store.ListMessages(channel)` to get message file paths sorted chronologically
-4. For each file, call `store.ReadMessage()` to parse the message
-5. Serialize to JSON line and print to stdout
+1. Call `store.ListChannels()` (or filter to `--channel`)
+2. For each channel, call `store.ListMessages(channel)` to get message file paths sorted chronologically
+3. For each file, call `store.ReadMessage()` to parse the message (format auto-detected from file extension)
+4. Serialize to JSON line and print to stdout
 
 **Files:**
 - `internal/cli/list.go` -- command definition
@@ -88,7 +89,7 @@ Flow:
 - Empty channel directory produces no output (exit 0)
 - Invalid `--channel` name produces JSON error on stderr, exit 1
 
-**Dependencies:** Task 4.1 (output helpers), Phase 1 Tasks 1.5-1.6 (store.ReadMessage, store.ListChannels, store.ListMessages)
+**Dependencies:** Task 4.1 (output helpers), Phase 1 Tasks 1.5-1.6 (store.ReadMessage, store.ListChannels, store.ListMessages). No config dependency -- `store.ReadMessage` auto-detects format from file extension.
 
 **Verification:**
 ```sh
@@ -106,15 +107,16 @@ cd /home/greg/p/comms && go test ./internal/cli/ -run TestList -v
 Flags:
 - `--channel <name>` -- optional, filter to a single channel
 
+`--channel` takes the full channel directory name as shown by `comms channels` (e.g., `telegram-general`).
+
 Flow:
-1. Load config to determine message format
-2. Call `store.ListChannels()` (or filter to `--channel`)
-3. For each channel:
+1. Call `store.ListChannels()` (or filter to `--channel`)
+2. For each channel:
    a. Call `store.ReadCursor(channel)` to get the last-read timestamp
    b. Call `store.ListMessagesAfter(channel, cursor)` to get files newer than cursor
    c. For each file, `store.ReadMessage()` and print as JSON line
    d. If any messages were found, call `store.WriteCursor(channel, newestTimestamp)` to advance cursor
-4. Exit 0 even if no unread messages (empty output is valid)
+3. Exit 0 even if no unread messages (empty output is valid)
 
 Output format: same JSON line format as `comms list`.
 
@@ -132,7 +134,7 @@ Cursor advancement happens per-channel, after all messages for that channel have
 - Running `unread` twice in succession: second run produces no output
 - Multiple channels: each cursor advances independently
 
-**Dependencies:** Task 4.1 (output helpers), Phase 1 Tasks 1.5-1.6 (store.ReadCursor, store.WriteCursor, store.ListMessagesAfter, store.ListChannels, store.ReadMessage)
+**Dependencies:** Task 4.1 (output helpers), Phase 1 Tasks 1.5-1.6 (store.ReadCursor, store.WriteCursor, store.ListMessagesAfter, store.ListChannels, store.ReadMessage). No config dependency -- `store.ReadMessage` auto-detects format from file extension.
 
 **Verification:**
 ```sh
@@ -149,6 +151,8 @@ cd /home/greg/p/comms && go test ./internal/cli/ -run TestUnread -v
 
 Flags:
 - `--channel <name>` -- required, the channel to send to
+
+`--channel` takes the full channel directory name as shown by `comms channels` (e.g., `telegram-general`).
 
 Flow:
 1. Load config to get telegram token

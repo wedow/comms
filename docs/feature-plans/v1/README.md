@@ -1,3 +1,14 @@
+---
+title: comms v1
+status: reviewing
+review_passes: 1
+last_review: 2026-03-01
+blocking_issues_history:
+  - pass: 1
+    blocking_count: 18
+    resolved: 18
+---
+
 # comms v1 Implementation Plan
 
 Unified CLI tool and daemon giving AI agents a filesystem-based interface for Telegram messaging. Messages are plain text files, config is TOML, output is JSON lines, callbacks are shell commands.
@@ -55,9 +66,9 @@ Phases 2, 3, and 4 all depend on Phase 1. Phase 3 depends on Phase 2. Phase 4 de
 | `telegram.BotAPI` interface | Phase 2, Task 2.1 | Phase 2 (send, poll), Phase 4 (send command) |
 | `telegram.Send()` | Phase 2, Task 2.3 | Phase 4 (send command) |
 | `telegram.Poll()` | Phase 2, Task 2.4 | Phase 3 (daemon core loop) |
-| `store.ReadChatID()` / `WriteChatID()` | Phase 3, Task 3.10 | Phase 3 (daemon), Phase 4 (send command) |
+| `store.ReadChatID()` / `WriteChatID()` | Phase 3, Task 3.9 | Phase 3 (daemon), Phase 4 (send command) |
 | `store.ReadOffset()` / `WriteOffset()` | Phase 3, Task 3.8 | Phase 3 (daemon) |
-| `daemon.WritePID()` / `ReadPID()` / `IsRunning()` | Phase 3, Task 3.2 | Phase 3 (daemon CLI commands) |
+| `daemon.WritePID()` / `ReadPID()` / `IsRunning()` | Phase 3, Task 3.1 | Phase 3 (daemon CLI commands) |
 
 ## How To Use
 

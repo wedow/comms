@@ -1,6 +1,6 @@
 # Phase 5: Packaging & Release
 
-**Dependencies:** Phases 1-4 (functional binary required before packaging)
+**Dependencies:** Phases 1-4 for verification commands; Tasks 5.1-5.3, 5.5-5.6 are static config files that can be written without a buildable binary.
 
 ---
 
@@ -103,6 +103,8 @@ test -f dist/comms.service && echo "file exists"
 ---
 
 ## Task 5.4: Homebrew Tap
+
+**Prerequisite (manual):** The `wedow/homebrew-tap` GitHub repository must exist before GoReleaser can publish the formula. Create it manually or note that `goreleaser release` will fail on the brew step until it exists. For local/snapshot builds this is not needed.
 
 **Description:** Configure GoReleaser to publish to a Homebrew tap. GoReleaser auto-updates the formula on release. The tap lives in a separate repo (`wedow/homebrew-tap`).
 

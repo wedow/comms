@@ -29,8 +29,10 @@ cd /home/greg/p/comms && go test ./internal/daemon/... -run TestPID -v
 
 The poll handler receives both `message.Message` and `chatID int64` from `telegram.Poll`. For each message:
 1. Write the message to disk via `store.WriteMessage`.
-2. Write the chat ID via `store.WriteChatID` (Task 3.10) so `comms send` can resolve channel names later.
-3. Fire the callback if configured (Task 3.5).
+2. Write the chat ID via `store.WriteChatID` (Task 3.9) so `comms send` can resolve channel names later.
+3. Fire the callback if configured (Task 3.6).
+
+The daemon constructs the channel directory name as `msg.Provider + "-" + msg.Channel` (e.g., `telegram-general`) and passes that to store functions.
 
 **Files:**
 - `internal/daemon/daemon.go` -- `Run(ctx context.Context, cfg config.Config, root string) error`: write PID file, init provider, enter poll loop, remove PID file on exit
