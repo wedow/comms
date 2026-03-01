@@ -77,6 +77,12 @@ func convertMessage(m *models.Message) message.Message {
 		msg.MediaGroupID = m.MediaGroupID
 	}
 
+	if len(m.Entities) > 0 {
+		msg.Entities = convertEntities(m.Entities)
+	} else if len(m.CaptionEntities) > 0 {
+		msg.Entities = convertEntities(m.CaptionEntities)
+	}
+
 	if m.EditDate != 0 {
 		t := time.Unix(int64(m.EditDate), 0).UTC()
 		msg.EditDate = &t
@@ -112,4 +118,17 @@ func convertMessage(m *models.Message) message.Message {
 	}
 
 	return msg
+}
+
+func convertEntities(ents []models.MessageEntity) []message.Entity {
+	out := make([]message.Entity, len(ents))
+	for i, e := range ents {
+		out[i] = message.Entity{
+			Type:   string(e.Type),
+			Offset: e.Offset,
+			Length: e.Length,
+			URL:    e.URL,
+		}
+	}
+	return out
 }

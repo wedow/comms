@@ -28,10 +28,11 @@ func ParseMessageID(id string) (int, error) {
 
 // Send sends a text message to the given chat and returns the resulting message.
 // If replyToID is non-zero, the message is sent as a reply to that message.
-func Send(ctx context.Context, api BotAPI, chatID int64, text string, replyToID int) (message.Message, error) {
+func Send(ctx context.Context, api BotAPI, chatID int64, text string, replyToID int, parseMode models.ParseMode) (message.Message, error) {
 	params := &bot.SendMessageParams{
-		ChatID: chatID,
-		Text:   text,
+		ChatID:    chatID,
+		Text:      text,
+		ParseMode: parseMode,
 	}
 	if replyToID != 0 {
 		params.ReplyParameters = &models.ReplyParameters{MessageID: replyToID}
@@ -66,7 +67,7 @@ func DetectMediaType(filename string) string {
 }
 
 // SendMedia sends a media file to the given chat and returns the resulting message.
-func SendMedia(ctx context.Context, api BotAPI, chatID int64, file io.Reader, filename string, mediaType string, caption string, replyToID int) (message.Message, error) {
+func SendMedia(ctx context.Context, api BotAPI, chatID int64, file io.Reader, filename string, mediaType string, caption string, replyToID int, parseMode models.ParseMode) (message.Message, error) {
 	upload := &models.InputFileUpload{Filename: filename, Data: file}
 
 	var replyParams *models.ReplyParameters
@@ -83,6 +84,7 @@ func SendMedia(ctx context.Context, api BotAPI, chatID int64, file io.Reader, fi
 			ChatID:          chatID,
 			Photo:           upload,
 			Caption:         caption,
+			ParseMode:       parseMode,
 			ReplyParameters: replyParams,
 		})
 	case "video":
@@ -90,6 +92,7 @@ func SendMedia(ctx context.Context, api BotAPI, chatID int64, file io.Reader, fi
 			ChatID:          chatID,
 			Video:           upload,
 			Caption:         caption,
+			ParseMode:       parseMode,
 			ReplyParameters: replyParams,
 		})
 	case "audio":
@@ -97,6 +100,7 @@ func SendMedia(ctx context.Context, api BotAPI, chatID int64, file io.Reader, fi
 			ChatID:          chatID,
 			Audio:           upload,
 			Caption:         caption,
+			ParseMode:       parseMode,
 			ReplyParameters: replyParams,
 		})
 	case "voice":
@@ -104,6 +108,7 @@ func SendMedia(ctx context.Context, api BotAPI, chatID int64, file io.Reader, fi
 			ChatID:          chatID,
 			Voice:           upload,
 			Caption:         caption,
+			ParseMode:       parseMode,
 			ReplyParameters: replyParams,
 		})
 	case "animation":
@@ -111,6 +116,7 @@ func SendMedia(ctx context.Context, api BotAPI, chatID int64, file io.Reader, fi
 			ChatID:          chatID,
 			Animation:       upload,
 			Caption:         caption,
+			ParseMode:       parseMode,
 			ReplyParameters: replyParams,
 		})
 	default:
@@ -118,6 +124,7 @@ func SendMedia(ctx context.Context, api BotAPI, chatID int64, file io.Reader, fi
 			ChatID:          chatID,
 			Document:        upload,
 			Caption:         caption,
+			ParseMode:       parseMode,
 			ReplyParameters: replyParams,
 		})
 	}

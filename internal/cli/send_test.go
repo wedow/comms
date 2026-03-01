@@ -365,6 +365,86 @@ func TestSendCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("format markdown sets parse mode", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		var gotParams *bot.SendMessageParams
+		mock := &mockSendBot{sendFn: func(_ context.Context, p *bot.SendMessageParams) (*models.Message, error) {
+			gotParams = p
+			return &models.Message{ID: 1, Chat: models.Chat{ID: 123}, Text: p.Text}, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader("*bold*"))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root, "--format", "markdown"})
+
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotParams.ParseMode != models.ParseModeMarkdown {
+			t.Errorf("ParseMode = %q, want %q", gotParams.ParseMode, models.ParseModeMarkdown)
+		}
+	})
+
+	t.Run("format html sets parse mode", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		var gotParams *bot.SendMessageParams
+		mock := &mockSendBot{sendFn: func(_ context.Context, p *bot.SendMessageParams) (*models.Message, error) {
+			gotParams = p
+			return &models.Message{ID: 1, Chat: models.Chat{ID: 123}, Text: p.Text}, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader("<b>bold</b>"))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root, "--format", "html"})
+
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotParams.ParseMode != models.ParseModeHTML {
+			t.Errorf("ParseMode = %q, want %q", gotParams.ParseMode, models.ParseModeHTML)
+		}
+	})
+
+	t.Run("format invalid returns error", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		mock := &mockSendBot{sendFn: func(_ context.Context, _ *bot.SendMessageParams) (*models.Message, error) {
+			t.Fatal("SendMessage should not be called with invalid format")
+			return nil, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader("hello"))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root, "--format", "rtf"})
+
+		err := cmd.Execute()
+		if err == nil {
+			t.Fatal("expected error for invalid format")
+		}
+	})
+
 	t.Run("file not found", func(t *testing.T) {
 		root := t.TempDir()
 		writeTestConfig(t, root)

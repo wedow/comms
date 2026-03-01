@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-telegram/bot/models"
+	"github.com/wedow/comms/internal/message"
 )
 
 func TestConvertMessage(t *testing.T) {
@@ -26,6 +27,7 @@ func TestConvertMessage(t *testing.T) {
 		wantMediaGroupID string
 		wantForwardFrom  string
 		wantForwardDate  *time.Time
+		wantEntities     []message.Entity
 	}{
 		{
 			name: "user in group",
@@ -533,6 +535,57 @@ func TestConvertMessage(t *testing.T) {
 			wantForwardFrom: "My Channel",
 			wantForwardDate: timePtr(time.Unix(1709300000, 0).UTC()),
 		},
+		{
+			name: "text entities",
+			msg: &models.Message{
+				ID:   80,
+				From: &models.User{Username: "alice"},
+				Date: 1000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+				Text: "hello world",
+				Entities: []models.MessageEntity{
+					{Type: models.MessageEntityTypeBold, Offset: 0, Length: 5},
+					{Type: models.MessageEntityTypeTextLink, Offset: 6, Length: 5, URL: "https://example.com"},
+				},
+			},
+			wantFrom:     "alice",
+			wantProvider: "telegram",
+			wantChannel:  "dev",
+			wantDate:     time.Unix(1000, 0).UTC(),
+			wantID:       "telegram-80",
+			wantBody:     "hello world",
+			wantEntities: []message.Entity{
+				{Type: "bold", Offset: 0, Length: 5},
+				{Type: "text_link", Offset: 6, Length: 5, URL: "https://example.com"},
+			},
+		},
+		{
+			name: "caption entities",
+			msg: &models.Message{
+				ID:   81,
+				From: &models.User{Username: "bob"},
+				Date: 2000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+				Photo: []models.PhotoSize{
+					{FileID: "photo-id", Width: 800, Height: 600},
+				},
+				Caption: "click here",
+				CaptionEntities: []models.MessageEntity{
+					{Type: models.MessageEntityTypeItalic, Offset: 0, Length: 5},
+				},
+			},
+			wantFrom:        "bob",
+			wantProvider:    "telegram",
+			wantChannel:     "dev",
+			wantDate:        time.Unix(2000, 0).UTC(),
+			wantID:          "telegram-81",
+			wantMediaType:   "photo",
+			wantMediaFileID: "photo-id",
+			wantCaption:     "click here",
+			wantEntities: []message.Entity{
+				{Type: "italic", Offset: 0, Length: 5},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -584,6 +637,16 @@ func TestConvertMessage(t *testing.T) {
 				t.Errorf("ForwardDate = %v, want nil", got.ForwardDate)
 			} else if tt.wantForwardDate != nil && (got.ForwardDate == nil || !got.ForwardDate.Equal(*tt.wantForwardDate)) {
 				t.Errorf("ForwardDate = %v, want %v", got.ForwardDate, tt.wantForwardDate)
+			}
+			if len(got.Entities) != len(tt.wantEntities) {
+				t.Errorf("Entities length = %d, want %d", len(got.Entities), len(tt.wantEntities))
+			} else {
+				for i, e := range got.Entities {
+					w := tt.wantEntities[i]
+					if e.Type != w.Type || e.Offset != w.Offset || e.Length != w.Length || e.URL != w.URL {
+						t.Errorf("Entities[%d] = %+v, want %+v", i, e, w)
+					}
+				}
 			}
 		})
 	}

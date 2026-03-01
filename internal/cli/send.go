@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-telegram/bot/models"
 	"github.com/spf13/cobra"
 	"github.com/wedow/comms/internal/config"
 	"github.com/wedow/comms/internal/provider/telegram"
@@ -69,6 +70,12 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 				}
 			}
 
+			parseMode, err := parseFormatFlag(cmd)
+			if err != nil {
+				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
+				return err
+			}
+
 			if filePath != "" {
 				f, err := os.Open(filePath)
 				if err != nil {
@@ -82,12 +89,12 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 					mediaType = telegram.DetectMediaType(filepath.Base(filePath))
 				}
 
-				if _, err := telegram.SendMedia(cmd.Context(), api, chatID, f, filepath.Base(filePath), mediaType, body, replyToID); err != nil {
+				if _, err := telegram.SendMedia(cmd.Context(), api, chatID, f, filepath.Base(filePath), mediaType, body, replyToID, parseMode); err != nil {
 					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
 					return err
 				}
 			} else {
-				if _, err := telegram.Send(cmd.Context(), api, chatID, body, replyToID); err != nil {
+				if _, err := telegram.Send(cmd.Context(), api, chatID, body, replyToID, parseMode); err != nil {
 					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
 					return err
 				}
@@ -101,6 +108,21 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 	cmd.Flags().String("reply-to", "", "message ID to reply to")
 	cmd.Flags().String("file", "", "path to file to send as media")
 	cmd.Flags().String("media-type", "", "media type override (photo, document, audio, video, voice, animation)")
+	cmd.Flags().String("format", "", "message format: markdown, html, or plain (default)")
 	_ = cmd.MarkFlagRequired("channel")
 	return cmd
+}
+
+func parseFormatFlag(cmd *cobra.Command) (models.ParseMode, error) {
+	format, _ := cmd.Flags().GetString("format")
+	switch format {
+	case "", "plain":
+		return "", nil
+	case "markdown":
+		return models.ParseModeMarkdown, nil
+	case "html":
+		return models.ParseModeHTML, nil
+	default:
+		return "", fmt.Errorf("unsupported format %q (use markdown, html, or plain)", format)
+	}
 }
