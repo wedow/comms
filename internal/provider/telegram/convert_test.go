@@ -24,6 +24,8 @@ func TestConvertMessage(t *testing.T) {
 		wantMediaFileID  string
 		wantCaption      string
 		wantMediaGroupID string
+		wantForwardFrom  string
+		wantForwardDate  *time.Time
 	}{
 		{
 			name: "user in group",
@@ -374,6 +376,131 @@ func TestConvertMessage(t *testing.T) {
 			wantMediaType:   "video_note",
 			wantMediaFileID: "vidnote-file-321",
 		},
+		{
+			name: "forwarded from user",
+			msg: &models.Message{
+				ID:   70,
+				From: &models.User{Username: "bob"},
+				Date: 14000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+				Text: "fwd msg",
+				ForwardOrigin: &models.MessageOrigin{
+					Type: models.MessageOriginTypeUser,
+					MessageOriginUser: &models.MessageOriginUser{
+						Date:       1709300000,
+						SenderUser: models.User{Username: "alice"},
+					},
+				},
+			},
+			wantFrom:        "bob",
+			wantProvider:    "telegram",
+			wantChannel:     "dev",
+			wantDate:        time.Unix(14000, 0).UTC(),
+			wantID:          "telegram-70",
+			wantBody:        "fwd msg",
+			wantForwardFrom: "alice",
+			wantForwardDate: timePtr(time.Unix(1709300000, 0).UTC()),
+		},
+		{
+			name: "forwarded from user without username",
+			msg: &models.Message{
+				ID:   71,
+				From: &models.User{Username: "bob"},
+				Date: 15000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+				Text: "fwd msg 2",
+				ForwardOrigin: &models.MessageOrigin{
+					Type: models.MessageOriginTypeUser,
+					MessageOriginUser: &models.MessageOriginUser{
+						Date:       1709300000,
+						SenderUser: models.User{FirstName: "Bob"},
+					},
+				},
+			},
+			wantFrom:        "bob",
+			wantProvider:    "telegram",
+			wantChannel:     "dev",
+			wantDate:        time.Unix(15000, 0).UTC(),
+			wantID:          "telegram-71",
+			wantBody:        "fwd msg 2",
+			wantForwardFrom: "Bob",
+			wantForwardDate: timePtr(time.Unix(1709300000, 0).UTC()),
+		},
+		{
+			name: "forwarded from hidden user",
+			msg: &models.Message{
+				ID:   72,
+				From: &models.User{Username: "carol"},
+				Date: 16000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+				Text: "hidden fwd",
+				ForwardOrigin: &models.MessageOrigin{
+					Type: models.MessageOriginTypeHiddenUser,
+					MessageOriginHiddenUser: &models.MessageOriginHiddenUser{
+						Date:           1709300000,
+						SenderUserName: "Anonymous",
+					},
+				},
+			},
+			wantFrom:        "carol",
+			wantProvider:    "telegram",
+			wantChannel:     "dev",
+			wantDate:        time.Unix(16000, 0).UTC(),
+			wantID:          "telegram-72",
+			wantBody:        "hidden fwd",
+			wantForwardFrom: "Anonymous",
+			wantForwardDate: timePtr(time.Unix(1709300000, 0).UTC()),
+		},
+		{
+			name: "forwarded from chat",
+			msg: &models.Message{
+				ID:   73,
+				From: &models.User{Username: "dave"},
+				Date: 17000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+				Text: "chat fwd",
+				ForwardOrigin: &models.MessageOrigin{
+					Type: models.MessageOriginTypeChat,
+					MessageOriginChat: &models.MessageOriginChat{
+						Date:       1709300000,
+						SenderChat: models.Chat{Title: "My Group"},
+					},
+				},
+			},
+			wantFrom:        "dave",
+			wantProvider:    "telegram",
+			wantChannel:     "dev",
+			wantDate:        time.Unix(17000, 0).UTC(),
+			wantID:          "telegram-73",
+			wantBody:        "chat fwd",
+			wantForwardFrom: "My Group",
+			wantForwardDate: timePtr(time.Unix(1709300000, 0).UTC()),
+		},
+		{
+			name: "forwarded from channel",
+			msg: &models.Message{
+				ID:   74,
+				From: &models.User{Username: "eve"},
+				Date: 18000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+				Text: "channel fwd",
+				ForwardOrigin: &models.MessageOrigin{
+					Type: models.MessageOriginTypeChannel,
+					MessageOriginChannel: &models.MessageOriginChannel{
+						Date: 1709300000,
+						Chat: models.Chat{Title: "My Channel"},
+					},
+				},
+			},
+			wantFrom:        "eve",
+			wantProvider:    "telegram",
+			wantChannel:     "dev",
+			wantDate:        time.Unix(18000, 0).UTC(),
+			wantID:          "telegram-74",
+			wantBody:        "channel fwd",
+			wantForwardFrom: "My Channel",
+			wantForwardDate: timePtr(time.Unix(1709300000, 0).UTC()),
+		},
 	}
 
 	for _, tt := range tests {
@@ -418,6 +545,16 @@ func TestConvertMessage(t *testing.T) {
 			if got.MediaGroupID != tt.wantMediaGroupID {
 				t.Errorf("MediaGroupID = %q, want %q", got.MediaGroupID, tt.wantMediaGroupID)
 			}
+			if got.ForwardFrom != tt.wantForwardFrom {
+				t.Errorf("ForwardFrom = %q, want %q", got.ForwardFrom, tt.wantForwardFrom)
+			}
+			if tt.wantForwardDate == nil && got.ForwardDate != nil {
+				t.Errorf("ForwardDate = %v, want nil", got.ForwardDate)
+			} else if tt.wantForwardDate != nil && (got.ForwardDate == nil || !got.ForwardDate.Equal(*tt.wantForwardDate)) {
+				t.Errorf("ForwardDate = %v, want %v", got.ForwardDate, tt.wantForwardDate)
+			}
 		})
 	}
 }
+
+func timePtr(t time.Time) *time.Time { return &t }

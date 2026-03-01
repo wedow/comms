@@ -72,5 +72,34 @@ func convertMessage(m *models.Message) message.Message {
 		msg.MediaGroupID = m.MediaGroupID
 	}
 
+	if m.ForwardOrigin != nil {
+		var fwdFrom string
+		var fwdDate int
+		switch m.ForwardOrigin.Type {
+		case models.MessageOriginTypeUser:
+			o := m.ForwardOrigin.MessageOriginUser
+			fwdFrom = o.SenderUser.Username
+			if fwdFrom == "" {
+				fwdFrom = o.SenderUser.FirstName
+			}
+			fwdDate = o.Date
+		case models.MessageOriginTypeHiddenUser:
+			o := m.ForwardOrigin.MessageOriginHiddenUser
+			fwdFrom = o.SenderUserName
+			fwdDate = o.Date
+		case models.MessageOriginTypeChat:
+			o := m.ForwardOrigin.MessageOriginChat
+			fwdFrom = o.SenderChat.Title
+			fwdDate = o.Date
+		case models.MessageOriginTypeChannel:
+			o := m.ForwardOrigin.MessageOriginChannel
+			fwdFrom = o.Chat.Title
+			fwdDate = o.Date
+		}
+		msg.ForwardFrom = fwdFrom
+		t := time.Unix(int64(fwdDate), 0).UTC()
+		msg.ForwardDate = &t
+	}
+
 	return msg
 }
