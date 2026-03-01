@@ -25,6 +25,7 @@ func newRootCmd() *cobra.Command {
 	cmd.Flags().Bool("version", false, "print version")
 	cmd.AddCommand(newInitCmd())
 	cmd.AddCommand(newChannelsCmd())
+	cmd.AddCommand(newDaemonCmd())
 	return cmd
 }
 

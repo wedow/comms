@@ -1,6 +1,6 @@
 ---
 id: com-0q0l
-status: open
+status: closed
 deps: [com-77c4]
 links: []
 created: 2026-03-01T13:18:03Z
