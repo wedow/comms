@@ -17,9 +17,13 @@ func TestConvertMessage(t *testing.T) {
 		wantDate        time.Time
 		wantID          string
 		wantBody        string
-		wantReplyTo     string
-		wantReplyToBody string
-		wantQuote       string
+		wantReplyTo      string
+		wantReplyToBody  string
+		wantQuote        string
+		wantMediaType    string
+		wantMediaFileID  string
+		wantCaption      string
+		wantMediaGroupID string
 	}{
 		{
 			name: "user in group",
@@ -202,6 +206,138 @@ func TestConvertMessage(t *testing.T) {
 			wantBody:     "just quoting",
 			wantQuote:    "some text",
 		},
+		{
+			name: "photo message",
+			msg: &models.Message{
+				ID:   60,
+				From: &models.User{Username: "alice"},
+				Date: 5000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Photos"},
+				Photo: []models.PhotoSize{
+					{FileID: "small-id", Width: 100, Height: 100},
+					{FileID: "large-id", Width: 800, Height: 600},
+				},
+				Caption: "nice photo",
+			},
+			wantFrom:        "alice",
+			wantProvider:    "telegram",
+			wantChannel:     "photos",
+			wantDate:        time.Unix(5000, 0).UTC(),
+			wantID:          "telegram-60",
+			wantMediaType:   "photo",
+			wantMediaFileID: "large-id",
+			wantCaption:     "nice photo",
+		},
+		{
+			name: "video message",
+			msg: &models.Message{
+				ID:   61,
+				From: &models.User{Username: "bob"},
+				Date: 6000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Videos"},
+				Video: &models.Video{FileID: "vid-id"},
+			},
+			wantFrom:        "bob",
+			wantProvider:    "telegram",
+			wantChannel:     "videos",
+			wantDate:        time.Unix(6000, 0).UTC(),
+			wantID:          "telegram-61",
+			wantMediaType:   "video",
+			wantMediaFileID: "vid-id",
+		},
+		{
+			name: "document with caption",
+			msg: &models.Message{
+				ID:      62,
+				From:    &models.User{Username: "carol"},
+				Date:    7000,
+				Chat:    models.Chat{Type: models.ChatTypeGroup, Title: "Files"},
+				Document: &models.Document{FileID: "doc-id"},
+				Caption: "read this",
+			},
+			wantFrom:        "carol",
+			wantProvider:    "telegram",
+			wantChannel:     "files",
+			wantDate:        time.Unix(7000, 0).UTC(),
+			wantID:          "telegram-62",
+			wantMediaType:   "document",
+			wantMediaFileID: "doc-id",
+			wantCaption:     "read this",
+		},
+		{
+			name: "voice message",
+			msg: &models.Message{
+				ID:   63,
+				From: &models.User{Username: "dave"},
+				Date: 8000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Voice"},
+				Voice: &models.Voice{FileID: "voice-id"},
+			},
+			wantFrom:        "dave",
+			wantProvider:    "telegram",
+			wantChannel:     "voice",
+			wantDate:        time.Unix(8000, 0).UTC(),
+			wantID:          "telegram-63",
+			wantMediaType:   "voice",
+			wantMediaFileID: "voice-id",
+		},
+		{
+			name: "animation message",
+			msg: &models.Message{
+				ID:   64,
+				From: &models.User{Username: "eve"},
+				Date: 9000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "GIFs"},
+				Animation: &models.Animation{FileID: "anim-id"},
+			},
+			wantFrom:        "eve",
+			wantProvider:    "telegram",
+			wantChannel:     "gifs",
+			wantDate:        time.Unix(9000, 0).UTC(),
+			wantID:          "telegram-64",
+			wantMediaType:   "animation",
+			wantMediaFileID: "anim-id",
+		},
+		{
+			name: "sticker message",
+			msg: &models.Message{
+				ID:   65,
+				From: &models.User{Username: "frank"},
+				Date: 10000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Stickers"},
+				Sticker: &models.Sticker{FileID: "sticker-id"},
+			},
+			wantFrom:        "frank",
+			wantProvider:    "telegram",
+			wantChannel:     "stickers",
+			wantDate:        time.Unix(10000, 0).UTC(),
+			wantID:          "telegram-65",
+			wantMediaType:   "sticker",
+			wantMediaFileID: "sticker-id",
+		},
+		{
+			name: "album photo with media group",
+			msg: &models.Message{
+				ID:   66,
+				From: &models.User{Username: "grace"},
+				Date: 11000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Album"},
+				Photo: []models.PhotoSize{
+					{FileID: "album-photo-id", Width: 800, Height: 600},
+				},
+				MediaGroupID: "group-123",
+				Caption:      "album caption",
+			},
+			wantFrom:         "grace",
+			wantProvider:     "telegram",
+			wantChannel:      "album",
+			wantDate:         time.Unix(11000, 0).UTC(),
+			wantID:           "telegram-66",
+			wantMediaType:    "photo",
+			wantMediaFileID:  "album-photo-id",
+			wantCaption:      "album caption",
+			wantMediaGroupID: "group-123",
+		},
 	}
 
 	for _, tt := range tests {
@@ -233,6 +369,18 @@ func TestConvertMessage(t *testing.T) {
 			}
 			if got.Quote != tt.wantQuote {
 				t.Errorf("Quote = %q, want %q", got.Quote, tt.wantQuote)
+			}
+			if got.MediaType != tt.wantMediaType {
+				t.Errorf("MediaType = %q, want %q", got.MediaType, tt.wantMediaType)
+			}
+			if got.MediaFileID != tt.wantMediaFileID {
+				t.Errorf("MediaFileID = %q, want %q", got.MediaFileID, tt.wantMediaFileID)
+			}
+			if got.Caption != tt.wantCaption {
+				t.Errorf("Caption = %q, want %q", got.Caption, tt.wantCaption)
+			}
+			if got.MediaGroupID != tt.wantMediaGroupID {
+				t.Errorf("MediaGroupID = %q, want %q", got.MediaGroupID, tt.wantMediaGroupID)
 			}
 		})
 	}

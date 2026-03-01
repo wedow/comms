@@ -37,5 +37,40 @@ func convertMessage(m *models.Message) message.Message {
 		msg.Quote = m.Quote.Text
 	}
 
+	// Media metadata
+	switch {
+	case len(m.Photo) > 0:
+		msg.MediaType = "photo"
+		msg.MediaFileID = m.Photo[len(m.Photo)-1].FileID
+	case m.Video != nil:
+		msg.MediaType = "video"
+		msg.MediaFileID = m.Video.FileID
+	case m.Audio != nil:
+		msg.MediaType = "audio"
+		msg.MediaFileID = m.Audio.FileID
+	case m.Document != nil:
+		msg.MediaType = "document"
+		msg.MediaFileID = m.Document.FileID
+	case m.Voice != nil:
+		msg.MediaType = "voice"
+		msg.MediaFileID = m.Voice.FileID
+	case m.Animation != nil:
+		msg.MediaType = "animation"
+		msg.MediaFileID = m.Animation.FileID
+	case m.Sticker != nil:
+		msg.MediaType = "sticker"
+		msg.MediaFileID = m.Sticker.FileID
+	case m.VideoNote != nil:
+		msg.MediaType = "video_note"
+		msg.MediaFileID = m.VideoNote.FileID
+	}
+
+	if m.Caption != "" {
+		msg.Caption = m.Caption
+	}
+	if m.MediaGroupID != "" {
+		msg.MediaGroupID = m.MediaGroupID
+	}
+
 	return msg
 }
