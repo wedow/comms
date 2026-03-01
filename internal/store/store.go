@@ -38,6 +38,9 @@ func WriteMessage(root string, msg message.Message, format string) (string, erro
 	}
 
 	chanDir := filepath.Join(root, msg.Provider+"-"+msg.Channel)
+	if msg.ThreadID != "" {
+		chanDir = filepath.Join(chanDir, "topic-"+msg.ThreadID)
+	}
 	if err := os.MkdirAll(chanDir, 0o755); err != nil {
 		return "", err
 	}

@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/go-telegram/bot/models"
@@ -29,6 +30,10 @@ func convertMessage(m *models.Message) message.Message {
 		Date:     time.Unix(int64(m.Date), 0).UTC(),
 		ID:       fmt.Sprintf("telegram-%d", m.ID),
 		Body:     m.Text,
+	}
+
+	if m.MessageThreadID != 0 {
+		msg.ThreadID = strconv.Itoa(m.MessageThreadID)
 	}
 
 	if m.ReplyToMessage != nil {

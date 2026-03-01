@@ -365,6 +365,34 @@ func TestSendCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("thread flag sets MessageThreadID", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		var gotParams *bot.SendMessageParams
+		mock := &mockSendBot{sendFn: func(_ context.Context, p *bot.SendMessageParams) (*models.Message, error) {
+			gotParams = p
+			return &models.Message{ID: 1, Chat: models.Chat{ID: 123}, Text: p.Text}, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader("topic message"))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root, "--thread", "42"})
+
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotParams.MessageThreadID != 42 {
+			t.Errorf("MessageThreadID = %d, want 42", gotParams.MessageThreadID)
+		}
+	})
+
 	t.Run("format markdown sets parse mode", func(t *testing.T) {
 		root := t.TempDir()
 		writeTestConfig(t, root)

@@ -70,6 +70,8 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 				}
 			}
 
+			threadID, _ := cmd.Flags().GetInt("thread")
+
 			parseMode, err := parseFormatFlag(cmd)
 			if err != nil {
 				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
@@ -89,12 +91,12 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 					mediaType = telegram.DetectMediaType(filepath.Base(filePath))
 				}
 
-				if _, err := telegram.SendMedia(cmd.Context(), api, chatID, f, filepath.Base(filePath), mediaType, body, replyToID, parseMode); err != nil {
+				if _, err := telegram.SendMedia(cmd.Context(), api, chatID, f, filepath.Base(filePath), mediaType, body, replyToID, threadID, parseMode); err != nil {
 					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
 					return err
 				}
 			} else {
-				if _, err := telegram.Send(cmd.Context(), api, chatID, body, replyToID, parseMode); err != nil {
+				if _, err := telegram.Send(cmd.Context(), api, chatID, body, replyToID, threadID, parseMode); err != nil {
 					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
 					return err
 				}
@@ -109,6 +111,7 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 	cmd.Flags().String("file", "", "path to file to send as media")
 	cmd.Flags().String("media-type", "", "media type override (photo, document, audio, video, voice, animation)")
 	cmd.Flags().String("format", "", "message format: markdown, html, or plain (default)")
+	cmd.Flags().Int("thread", 0, "forum topic thread ID to send to")
 	_ = cmd.MarkFlagRequired("channel")
 	return cmd
 }

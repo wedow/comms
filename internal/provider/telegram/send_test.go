@@ -89,7 +89,7 @@ func TestSend(t *testing.T) {
 			}, nil
 		}}
 
-		got, err := Send(context.Background(), m, 123, "hello", 0, "")
+		got, err := Send(context.Background(), m, 123, "hello", 0, 0, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -118,7 +118,7 @@ func TestSend(t *testing.T) {
 			return nil, errors.New("network timeout")
 		}}
 
-		_, err := Send(context.Background(), m, 456, "fail", 0, "")
+		_, err := Send(context.Background(), m, 456, "fail", 0, 0, "")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -129,7 +129,7 @@ func TestSend(t *testing.T) {
 			return nil, nil
 		}}
 
-		_, err := Send(context.Background(), m, 789, "nil", 0, "")
+		_, err := Send(context.Background(), m, 789, "nil", 0, 0, "")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -142,7 +142,7 @@ func TestSend(t *testing.T) {
 			return &models.Message{ID: 99, Chat: models.Chat{ID: 123}, Text: "reply"}, nil
 		}}
 
-		_, err := Send(context.Background(), m, 123, "reply", 42, "")
+		_, err := Send(context.Background(), m, 123, "reply", 42, 0, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -161,7 +161,7 @@ func TestSend(t *testing.T) {
 			return &models.Message{ID: 101, Chat: models.Chat{ID: 123}, Text: "*bold*"}, nil
 		}}
 
-		_, err := Send(context.Background(), m, 123, "*bold*", 0, models.ParseModeMarkdown)
+		_, err := Send(context.Background(), m, 123, "*bold*", 0, 0, models.ParseModeMarkdown)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -177,7 +177,7 @@ func TestSend(t *testing.T) {
 			return &models.Message{ID: 100, Chat: models.Chat{ID: 123}, Text: "no reply"}, nil
 		}}
 
-		_, err := Send(context.Background(), m, 123, "no reply", 0, "")
+		_, err := Send(context.Background(), m, 123, "no reply", 0, 0, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -239,7 +239,7 @@ func TestSendMedia(t *testing.T) {
 			}
 			return stubResp, nil
 		}}
-		got, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "pic.jpg", "photo", "my caption", 0, "")
+		got, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "pic.jpg", "photo", "my caption", 0, 0, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -260,7 +260,7 @@ func TestSendMedia(t *testing.T) {
 			}
 			return stubResp, nil
 		}}
-		_, err := SendMedia(context.Background(), m, 456, strings.NewReader("data"), "file.pdf", "document", "", 0, "")
+		_, err := SendMedia(context.Background(), m, 456, strings.NewReader("data"), "file.pdf", "document", "", 0, 0, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -275,7 +275,7 @@ func TestSendMedia(t *testing.T) {
 			called = true
 			return stubResp, nil
 		}}
-		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "song.mp3", "audio", "", 0, "")
+		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "song.mp3", "audio", "", 0, 0, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -290,7 +290,7 @@ func TestSendMedia(t *testing.T) {
 			called = true
 			return stubResp, nil
 		}}
-		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "clip.mp4", "video", "", 0, "")
+		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "clip.mp4", "video", "", 0, 0, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -305,7 +305,7 @@ func TestSendMedia(t *testing.T) {
 			called = true
 			return stubResp, nil
 		}}
-		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "msg.ogg", "voice", "", 0, "")
+		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "msg.ogg", "voice", "", 0, 0, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -320,7 +320,7 @@ func TestSendMedia(t *testing.T) {
 			called = true
 			return stubResp, nil
 		}}
-		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "funny.gif", "animation", "", 0, "")
+		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "funny.gif", "animation", "", 0, 0, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -339,7 +339,7 @@ func TestSendMedia(t *testing.T) {
 			}
 			return stubResp, nil
 		}}
-		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "pic.jpg", "photo", "", 42, "")
+		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "pic.jpg", "photo", "", 42, 0, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -349,7 +349,7 @@ func TestSendMedia(t *testing.T) {
 		m := &mockBot{sendPhotoFn: func(_ context.Context, _ *bot.SendPhotoParams) (*models.Message, error) {
 			return nil, errors.New("upload failed")
 		}}
-		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "pic.jpg", "photo", "", 0, "")
+		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "pic.jpg", "photo", "", 0, 0, "")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
@@ -362,7 +362,7 @@ func TestSendMedia(t *testing.T) {
 			}
 			return stubResp, nil
 		}}
-		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "pic.jpg", "photo", "<b>hi</b>", 0, models.ParseModeHTML)
+		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "pic.jpg", "photo", "<b>hi</b>", 0, 0, models.ParseModeHTML)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -374,7 +374,7 @@ func TestSendMedia(t *testing.T) {
 			called = true
 			return stubResp, nil
 		}}
-		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "file.xyz", "unknown", "", 0, "")
+		_, err := SendMedia(context.Background(), m, 123, strings.NewReader("data"), "file.xyz", "unknown", "", 0, 0, "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

@@ -79,6 +79,47 @@ func TestListMessages(t *testing.T) {
 	}
 }
 
+func TestListMessagesIncludesTopicSubdirs(t *testing.T) {
+	root := t.TempDir()
+	channel := "telegram-general"
+	chanDir := filepath.Join(root, channel)
+	topicDir := filepath.Join(chanDir, "topic-42")
+	if err := os.MkdirAll(topicDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Root-level message and topic-level message (topic message is chronologically between)
+	rootFiles := []string{"2026-03-01T12-29-00Z.md", "2026-03-01T12-31-00Z.md"}
+	for _, f := range rootFiles {
+		if err := os.WriteFile(filepath.Join(chanDir, f), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	topicFile := "2026-03-01T12-30-00Z.md"
+	if err := os.WriteFile(filepath.Join(topicDir, topicFile), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ListMessages(root, channel)
+	if err != nil {
+		t.Fatalf("ListMessages: %v", err)
+	}
+
+	want := []string{
+		filepath.Join(chanDir, "2026-03-01T12-29-00Z.md"),
+		filepath.Join(topicDir, "2026-03-01T12-30-00Z.md"),
+		filepath.Join(chanDir, "2026-03-01T12-31-00Z.md"),
+	}
+	if len(got) != len(want) {
+		t.Fatalf("ListMessages = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("ListMessages[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 func TestListMessagesAfter(t *testing.T) {
 	root := t.TempDir()
 	channel := "telegram-general"

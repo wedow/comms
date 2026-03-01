@@ -79,6 +79,34 @@ func TestWriteMessage(t *testing.T) {
 	}
 }
 
+func TestWriteMessageWithThreadID(t *testing.T) {
+	root := filepath.Join(t.TempDir(), ".comms")
+	if err := InitDir(root); err != nil {
+		t.Fatalf("InitDir: %v", err)
+	}
+
+	msg := message.Message{
+		From:     "alice",
+		Provider: "telegram",
+		Channel:  "general",
+		Date:     time.Date(2026, 3, 1, 12, 30, 0, 0, time.UTC),
+		ID:       "42",
+		ThreadID: "99",
+		Body:     "topic message",
+	}
+
+	path, err := WriteMessage(root, msg, "markdown")
+	if err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+
+	// Verify file is under topic-99 subdirectory
+	wantDir := filepath.Join(root, "telegram-general", "topic-99")
+	if filepath.Dir(path) != wantDir {
+		t.Errorf("path dir = %s, want %s", filepath.Dir(path), wantDir)
+	}
+}
+
 func TestWriteMessageOrg(t *testing.T) {
 	root := filepath.Join(t.TempDir(), ".comms")
 	if err := InitDir(root); err != nil {

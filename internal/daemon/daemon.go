@@ -152,6 +152,9 @@ func downloadMedia(root, channelDir string, msg *message.Message) error {
 
 	timestamp := strings.ReplaceAll(msg.Date.Format(time.RFC3339Nano), ":", "-")
 	chanPath := filepath.Join(root, channelDir)
+	if msg.ThreadID != "" {
+		chanPath = filepath.Join(chanPath, "topic-"+msg.ThreadID)
+	}
 	path, err := store.WriteMedia(chanPath, timestamp, 1, msg.MediaExt, data)
 	if err != nil {
 		return err

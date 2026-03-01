@@ -28,6 +28,7 @@ func TestConvertMessage(t *testing.T) {
 		wantForwardFrom  string
 		wantForwardDate  *time.Time
 		wantEntities     []message.Entity
+		wantThreadID     string
 	}{
 		{
 			name: "user in group",
@@ -586,6 +587,24 @@ func TestConvertMessage(t *testing.T) {
 				{Type: "italic", Offset: 0, Length: 5},
 			},
 		},
+		{
+			name: "forum topic message",
+			msg: &models.Message{
+				ID:              90,
+				From:            &models.User{Username: "alice"},
+				Date:            22000,
+				Chat:            models.Chat{Type: models.ChatTypeSupergroup, Title: "Forum"},
+				Text:            "topic msg",
+				MessageThreadID: 42,
+			},
+			wantFrom:     "alice",
+			wantProvider: "telegram",
+			wantChannel:  "forum",
+			wantDate:     time.Unix(22000, 0).UTC(),
+			wantID:       "telegram-90",
+			wantBody:     "topic msg",
+			wantThreadID: "42",
+		},
 	}
 
 	for _, tt := range tests {
@@ -626,6 +645,9 @@ func TestConvertMessage(t *testing.T) {
 			}
 			if got.Caption != tt.wantCaption {
 				t.Errorf("Caption = %q, want %q", got.Caption, tt.wantCaption)
+			}
+			if got.ThreadID != tt.wantThreadID {
+				t.Errorf("ThreadID = %q, want %q", got.ThreadID, tt.wantThreadID)
 			}
 			if got.MediaGroupID != tt.wantMediaGroupID {
 				t.Errorf("MediaGroupID = %q, want %q", got.MediaGroupID, tt.wantMediaGroupID)

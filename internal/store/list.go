@@ -27,7 +27,8 @@ func ListChannels(root string) ([]string, error) {
 }
 
 // ListMessages returns sorted file paths in a channel directory, excluding .cursor.
-// Files are sorted lexicographically ascending (oldest first).
+// Also includes files from topic-* subdirectories.
+// Files are sorted by basename (timestamp-based filenames) ascending (oldest first).
 func ListMessages(root, channel string) ([]string, error) {
 	chanDir := filepath.Join(root, channel)
 	entries, err := os.ReadDir(chanDir)
@@ -37,11 +38,24 @@ func ListMessages(root, channel string) ([]string, error) {
 
 	var paths []string
 	for _, e := range entries {
-		if !e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+		if e.IsDir() && strings.HasPrefix(e.Name(), "topic-") {
+			subDir := filepath.Join(chanDir, e.Name())
+			subEntries, err := os.ReadDir(subDir)
+			if err != nil {
+				return nil, err
+			}
+			for _, se := range subEntries {
+				if !se.IsDir() && !strings.HasPrefix(se.Name(), ".") {
+					paths = append(paths, filepath.Join(subDir, se.Name()))
+				}
+			}
+		} else if !e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
 			paths = append(paths, filepath.Join(chanDir, e.Name()))
 		}
 	}
-	sort.Strings(paths)
+	sort.Slice(paths, func(i, j int) bool {
+		return filepath.Base(paths[i]) < filepath.Base(paths[j])
+	})
 	return paths, nil
 }
 

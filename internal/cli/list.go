@@ -52,7 +52,8 @@ func newListCmd() *cobra.Command {
 						MediaType string    `json:"media_type,omitempty"`
 						MediaURL  string    `json:"media_url,omitempty"`
 						Caption   string    `json:"caption,omitempty"`
-					}{msg.From, msg.Provider, msg.Channel, msg.Date, msg.ID, msg.Body, p, msg.MediaType, msg.MediaURL, msg.Caption}); err != nil {
+						ThreadID  string    `json:"thread_id,omitempty"`
+					}{msg.From, msg.Provider, msg.Channel, msg.Date, msg.ID, msg.Body, p, msg.MediaType, msg.MediaURL, msg.Caption, msg.ThreadID}); err != nil {
 						return err
 					}
 				}
