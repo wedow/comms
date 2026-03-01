@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/wedow/comms/internal/config"
 	"github.com/wedow/comms/internal/message"
@@ -27,13 +28,28 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 		return err
 	}
 
+	var cb *CallbackRunner
+	if cfg.Callback.Command != "" {
+		delay, _ := time.ParseDuration(cfg.Callback.Delay)
+		cb = NewCallbackRunner(cfg.Callback.Command, delay)
+	}
+
 	finalOffset, err := p.Poll(ctx, offset, func(msg message.Message, chatID int64) {
 		channelDir := msg.Provider + "-" + msg.Channel
-		if _, err := store.WriteMessage(root, msg, cfg.General.Format); err != nil {
+		filePath, err := store.WriteMessage(root, msg, cfg.General.Format)
+		if err != nil {
 			log.Printf("failed to write message: %v", err)
 		}
 		if err := store.WriteChatID(root, channelDir, chatID); err != nil {
 			log.Printf("failed to write chat ID: %v", err)
+		}
+		if cb != nil {
+			cb.Run(CallbackEnv{
+				File:     filePath,
+				Channel:  channelDir,
+				Provider: msg.Provider,
+				Sender:   msg.From,
+			})
 		}
 	})
 	if err != nil {
