@@ -1,7 +1,7 @@
 ---
 id: com-vdst
-status: open
-deps: [com-hyrn]
+status: closed
+deps: [com-hyrn, com-azpc, com-g34x]
 links: []
 created: 2026-03-01T20:37:28Z
 type: feature

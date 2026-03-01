@@ -180,6 +180,66 @@ func TestUnreadEmpty(t *testing.T) {
 	}
 }
 
+func TestUnreadMediaFields(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	now := time.Date(2026, 2, 24, 14, 30, 5, 0, time.UTC)
+	msgs := []message.Message{
+		{From: "alice", Provider: "telegram", Channel: "general", Date: now, ID: "t-1", Body: "text only"},
+		{From: "bob", Provider: "telegram", Channel: "general", Date: now.Add(time.Second), ID: "t-2",
+			MediaType: "photo", MediaURL: "/media/photo.jpg", Caption: "nice pic", Body: "nice pic"},
+	}
+	for _, m := range msgs {
+		if _, err := store.WriteMessage(tmpDir, m, "markdown"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"unread", "--dir", tmpDir})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unread command: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("got %d lines, want 2:\n%s", len(lines), buf.String())
+	}
+
+	// Text-only message should NOT have media fields (omitempty)
+	var textMsg map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &textMsg); err != nil {
+		t.Fatalf("invalid JSON: %s", lines[0])
+	}
+	if _, ok := textMsg["media_type"]; ok {
+		t.Error("text message should not have media_type field")
+	}
+	if _, ok := textMsg["media_url"]; ok {
+		t.Error("text message should not have media_url field")
+	}
+	if _, ok := textMsg["caption"]; ok {
+		t.Error("text message should not have caption field")
+	}
+
+	// Media message should have media fields
+	var mediaMsg map[string]any
+	if err := json.Unmarshal([]byte(lines[1]), &mediaMsg); err != nil {
+		t.Fatalf("invalid JSON: %s", lines[1])
+	}
+	if mediaMsg["media_type"] != "photo" {
+		t.Errorf("media_type = %v, want photo", mediaMsg["media_type"])
+	}
+	if mediaMsg["media_url"] != "/media/photo.jpg" {
+		t.Errorf("media_url = %v, want /media/photo.jpg", mediaMsg["media_url"])
+	}
+	if mediaMsg["caption"] != "nice pic" {
+		t.Errorf("caption = %v, want nice pic", mediaMsg["caption"])
+	}
+}
+
 func TestUnreadPartialCursor(t *testing.T) {
 	tmpDir := t.TempDir()
 

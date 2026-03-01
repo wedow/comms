@@ -73,6 +73,66 @@ func TestListCommand(t *testing.T) {
 	}
 }
 
+func TestListMediaFields(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	now := time.Date(2026, 2, 24, 14, 30, 5, 0, time.UTC)
+	msgs := []message.Message{
+		{From: "alice", Provider: "telegram", Channel: "general", Date: now, ID: "t-1", Body: "text only"},
+		{From: "bob", Provider: "telegram", Channel: "general", Date: now.Add(time.Second), ID: "t-2",
+			MediaType: "document", MediaURL: "/media/file.pdf", Caption: "the doc", Body: "the doc"},
+	}
+	for _, m := range msgs {
+		if _, err := store.WriteMessage(tmpDir, m, "markdown"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"list", "--dir", tmpDir})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("list command: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("got %d lines, want 2:\n%s", len(lines), buf.String())
+	}
+
+	// Text-only message should NOT have media fields (omitempty)
+	var textMsg map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &textMsg); err != nil {
+		t.Fatalf("invalid JSON: %s", lines[0])
+	}
+	if _, ok := textMsg["media_type"]; ok {
+		t.Error("text message should not have media_type field")
+	}
+	if _, ok := textMsg["media_url"]; ok {
+		t.Error("text message should not have media_url field")
+	}
+	if _, ok := textMsg["caption"]; ok {
+		t.Error("text message should not have caption field")
+	}
+
+	// Media message should have media fields
+	var mediaMsg map[string]any
+	if err := json.Unmarshal([]byte(lines[1]), &mediaMsg); err != nil {
+		t.Fatalf("invalid JSON: %s", lines[1])
+	}
+	if mediaMsg["media_type"] != "document" {
+		t.Errorf("media_type = %v, want document", mediaMsg["media_type"])
+	}
+	if mediaMsg["media_url"] != "/media/file.pdf" {
+		t.Errorf("media_url = %v, want /media/file.pdf", mediaMsg["media_url"])
+	}
+	if mediaMsg["caption"] != "the doc" {
+		t.Errorf("caption = %v, want the doc", mediaMsg["caption"])
+	}
+}
+
 func TestListCommandChannelFilter(t *testing.T) {
 	tmpDir := t.TempDir()
 

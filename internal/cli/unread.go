@@ -49,14 +49,17 @@ func newUnreadCmd() *cobra.Command {
 						return err
 					}
 					if err := PrintJSON(cmd.OutOrStdout(), struct {
-						From     string    `json:"from"`
-						Provider string    `json:"provider"`
-						Channel  string    `json:"channel"`
-						Date     time.Time `json:"date"`
-						ID       string    `json:"id"`
-						Body     string    `json:"body"`
-						File     string    `json:"file"`
-					}{msg.From, msg.Provider, msg.Channel, msg.Date, msg.ID, msg.Body, p}); err != nil {
+						From      string    `json:"from"`
+						Provider  string    `json:"provider"`
+						Channel   string    `json:"channel"`
+						Date      time.Time `json:"date"`
+						ID        string    `json:"id"`
+						Body      string    `json:"body"`
+						File      string    `json:"file"`
+						MediaType string    `json:"media_type,omitempty"`
+						MediaURL  string    `json:"media_url,omitempty"`
+						Caption   string    `json:"caption,omitempty"`
+					}{msg.From, msg.Provider, msg.Channel, msg.Date, msg.ID, msg.Body, p, msg.MediaType, msg.MediaURL, msg.Caption}); err != nil {
 						return err
 					}
 					if msg.Date.After(newest) {
