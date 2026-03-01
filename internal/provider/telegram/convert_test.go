@@ -338,6 +338,42 @@ func TestConvertMessage(t *testing.T) {
 			wantCaption:      "album caption",
 			wantMediaGroupID: "group-123",
 		},
+		{
+			name: "audio message",
+			msg: &models.Message{
+				ID:      67,
+				From:    &models.User{Username: "heidi"},
+				Date:    12000,
+				Chat:    models.Chat{Type: models.ChatTypeGroup, Title: "Audio"},
+				Audio:   &models.Audio{FileID: "audio-file-789"},
+				Caption: "podcast episode",
+			},
+			wantFrom:        "heidi",
+			wantProvider:    "telegram",
+			wantChannel:     "audio",
+			wantDate:        time.Unix(12000, 0).UTC(),
+			wantID:          "telegram-67",
+			wantMediaType:   "audio",
+			wantMediaFileID: "audio-file-789",
+			wantCaption:     "podcast episode",
+		},
+		{
+			name: "video note message",
+			msg: &models.Message{
+				ID:        68,
+				From:      &models.User{Username: "ivan"},
+				Date:      13000,
+				Chat:      models.Chat{Type: models.ChatTypeGroup, Title: "Notes"},
+				VideoNote: &models.VideoNote{FileID: "vidnote-file-321"},
+			},
+			wantFrom:        "ivan",
+			wantProvider:    "telegram",
+			wantChannel:     "notes",
+			wantDate:        time.Unix(13000, 0).UTC(),
+			wantID:          "telegram-68",
+			wantMediaType:   "video_note",
+			wantMediaFileID: "vidnote-file-321",
+		},
 	}
 
 	for _, tt := range tests {
