@@ -23,6 +23,7 @@ func newRootCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().Bool("version", false, "print version")
+	cmd.AddCommand(newInitCmd())
 	return cmd
 }
 
