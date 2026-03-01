@@ -82,3 +82,50 @@ func TestExecCallbackAsync(t *testing.T) {
 		t.Errorf("ExecCallback blocked for %v, expected async return", elapsed)
 	}
 }
+
+func TestCallbackRunnerThrottlesRapidCalls(t *testing.T) {
+	tmp := t.TempDir()
+	marker := tmp + "/count.txt"
+
+	// Append "x" on each execution; count x's to know how many times it ran
+	cmd := "printf x >> " + marker
+	runner := NewCallbackRunner(cmd, 1*time.Second)
+	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s"}
+
+	runner.Run(env)
+	runner.Run(env) // should be throttled
+
+	time.Sleep(200 * time.Millisecond) // let async exec finish
+
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("reading marker file: %v", err)
+	}
+	if got := len(data); got != 1 {
+		t.Errorf("expected 1 execution, got %d", got)
+	}
+}
+
+func TestCallbackRunnerAllowsAfterDelay(t *testing.T) {
+	tmp := t.TempDir()
+	marker := tmp + "/count.txt"
+
+	cmd := "printf x >> " + marker
+	delay := 50 * time.Millisecond
+	runner := NewCallbackRunner(cmd, delay)
+	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s"}
+
+	runner.Run(env)
+	time.Sleep(delay + 50*time.Millisecond) // wait past the delay
+	runner.Run(env)
+
+	time.Sleep(200 * time.Millisecond) // let async exec finish
+
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("reading marker file: %v", err)
+	}
+	if got := len(data); got != 2 {
+		t.Errorf("expected 2 executions, got %d", got)
+	}
+}

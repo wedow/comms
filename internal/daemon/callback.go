@@ -3,6 +3,7 @@ package daemon
 import (
 	"os"
 	"os/exec"
+	"time"
 )
 
 // CallbackEnv holds the context passed to a callback command as environment variables.
@@ -34,4 +35,25 @@ func ExecCallback(command string, env CallbackEnv) error {
 	go cmd.Run() //nolint:errcheck
 
 	return nil
+}
+
+// CallbackRunner rate-limits callback execution using a global delay.
+type CallbackRunner struct {
+	command string
+	delay   time.Duration
+	lastRun time.Time
+}
+
+// NewCallbackRunner creates a CallbackRunner with the given command and minimum delay between executions.
+func NewCallbackRunner(command string, delay time.Duration) *CallbackRunner {
+	return &CallbackRunner{command: command, delay: delay}
+}
+
+// Run executes the callback if enough time has elapsed since the last run.
+func (r *CallbackRunner) Run(env CallbackEnv) {
+	if time.Since(r.lastRun) < r.delay {
+		return
+	}
+	r.lastRun = time.Now()
+	ExecCallback(r.command, env) //nolint:errcheck
 }

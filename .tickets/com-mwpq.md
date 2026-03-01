@@ -1,6 +1,6 @@
 ---
 id: com-mwpq
-status: open
+status: closed
 deps: [com-zl1e]
 links: []
 created: 2026-03-01T13:18:20Z
