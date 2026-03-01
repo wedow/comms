@@ -37,7 +37,7 @@ func ListMessages(root, channel string) ([]string, error) {
 
 	var paths []string
 	for _, e := range entries {
-		if !e.IsDir() && e.Name() != ".cursor" {
+		if !e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
 			paths = append(paths, filepath.Join(chanDir, e.Name()))
 		}
 	}
