@@ -3,9 +3,13 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/BurntSushi/toml"
+	"github.com/wedow/comms/internal/config"
 )
 
 func TestDaemonStatusNoPID(t *testing.T) {
@@ -61,5 +65,45 @@ func TestDaemonStatusStalePID(t *testing.T) {
 	// Stale PID file should have been cleaned up
 	if _, err := os.Stat(pidPath); !os.IsNotExist(err) {
 		t.Error("stale PID file should have been removed")
+	}
+}
+
+func TestDaemonStartAlreadyRunning(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write a config.toml so config.Load succeeds
+	cfgPath := filepath.Join(tmpDir, "config.toml")
+	f, err := os.Create(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := toml.NewEncoder(f).Encode(config.Default()); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	// Write current PID so IsRunning returns true
+	pidPath := filepath.Join(tmpDir, "daemon.pid")
+	if err := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", os.Getpid())), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	stderr := new(bytes.Buffer)
+	cmd.SetErr(stderr)
+	cmd.SetArgs([]string{"daemon", "start", "--dir", tmpDir})
+
+	err = cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error when daemon is already running")
+	}
+
+	// Stderr should contain JSON error about already running
+	var errObj map[string]string
+	if jsonErr := json.Unmarshal(stderr.Bytes(), &errObj); jsonErr != nil {
+		t.Fatalf("stderr is not valid JSON: %v\nstderr: %s", jsonErr, stderr.String())
+	}
+	if errObj["error"] == "" {
+		t.Error("expected non-empty error field in JSON output")
 	}
 }
