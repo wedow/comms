@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/wedow/comms/internal/config"
@@ -72,7 +74,50 @@ func newDaemonCmd() *cobra.Command {
 	}
 	startCmd.Flags().String("dir", ".comms", "root directory")
 
-	cmd.AddCommand(statusCmd, startCmd)
+	stopCmd := &cobra.Command{
+		Use:           "stop",
+		Short:         "Stop the comms daemon",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dir, _ := cmd.Flags().GetString("dir")
+			root, err := filepath.Abs(dir)
+			if err != nil {
+				return err
+			}
+
+			pid, pidErr := daemon.ReadPID(root)
+			if pidErr != nil {
+				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": "daemon not running"})
+				return fmt.Errorf("daemon not running")
+			}
+
+			if !daemon.IsRunning(root) {
+				_ = daemon.RemovePID(root)
+				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": "daemon not running (stale pid)"})
+				return fmt.Errorf("daemon not running (stale pid)")
+			}
+
+			if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("failed to stop daemon: %v", err)})
+				return fmt.Errorf("failed to stop daemon: %w", err)
+			}
+
+			// Wait briefly for process to exit
+			for i := 0; i < 10; i++ {
+				time.Sleep(100 * time.Millisecond)
+				if !daemon.IsRunning(root) {
+					_ = daemon.RemovePID(root)
+					return PrintJSON(cmd.OutOrStdout(), map[string]string{"status": "stopped"})
+				}
+			}
+
+			return PrintJSON(cmd.OutOrStdout(), map[string]string{"status": "stopping", "pid": fmt.Sprintf("%d", pid)})
+		},
+	}
+	stopCmd.Flags().String("dir", ".comms", "root directory")
+
+	cmd.AddCommand(statusCmd, startCmd, stopCmd)
 	return cmd
 }
 

@@ -1,6 +1,6 @@
 ---
 id: com-mgu1
-status: open
+status: closed
 deps: [com-77c4, com-n1t1]
 links: []
 created: 2026-03-01T13:17:58Z
