@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"log"
 
 	"github.com/wedow/comms/internal/config"
 	"github.com/wedow/comms/internal/message"
@@ -28,8 +29,12 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 
 	finalOffset, err := p.Poll(ctx, offset, func(msg message.Message, chatID int64) {
 		channelDir := msg.Provider + "-" + msg.Channel
-		store.WriteMessage(root, msg, cfg.General.Format)
-		store.WriteChatID(root, channelDir, chatID)
+		if _, err := store.WriteMessage(root, msg, cfg.General.Format); err != nil {
+			log.Printf("failed to write message: %v", err)
+		}
+		if err := store.WriteChatID(root, channelDir, chatID); err != nil {
+			log.Printf("failed to write chat ID: %v", err)
+		}
 	})
 	if err != nil {
 		return err
