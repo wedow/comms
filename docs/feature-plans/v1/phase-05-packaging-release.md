@@ -104,9 +104,7 @@ test -f dist/comms.service && echo "file exists"
 
 ## Task 5.4: Homebrew Tap
 
-**Prerequisite (manual):** The `wedow/homebrew-tap` GitHub repository must exist before GoReleaser can publish the formula. Create it manually or note that `goreleaser release` will fail on the brew step until it exists. For local/snapshot builds this is not needed.
-
-**Description:** Configure GoReleaser to publish to a Homebrew tap. GoReleaser auto-updates the formula on release. The tap lives in a separate repo (`wedow/homebrew-tap`).
+**Description:** Configure GoReleaser to publish to the existing Homebrew tap at `wedow/homebrew-tools`. GoReleaser auto-updates the formula on release — no manual publish step needed. The CI release job (Task 5.2) handles this automatically when a `v*` tag is pushed.
 
 **Files:**
 - `.goreleaser.yaml` -- add `brews` section (modify existing file from Task 5.1)
@@ -116,7 +114,7 @@ test -f dist/comms.service && echo "file exists"
 brews:
   - repository:
       owner: wedow
-      name: homebrew-tap
+      name: homebrew-tools
     directory: Formula
     homepage: https://github.com/wedow/comms
     description: Filesystem-based messaging interface for AI agents
@@ -126,7 +124,7 @@ brews:
     service: |
       run [opt_bin/"comms", "daemon", "start"]
       keep_alive true
-      working_dir var/"comms"
+      working_dir Dir.home
       log_path var/"log/comms.log"
       error_log_path var/"log/comms.log"
 ```
