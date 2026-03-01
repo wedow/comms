@@ -17,7 +17,7 @@ func convertMessage(m *models.Message) message.Message {
 		}
 	}
 
-	return message.Message{
+	msg := message.Message{
 		From:     from,
 		Provider: "telegram",
 		Channel:  SlugifyChat(m.Chat),
@@ -25,4 +25,17 @@ func convertMessage(m *models.Message) message.Message {
 		ID:       fmt.Sprintf("telegram-%d", m.ID),
 		Body:     m.Text,
 	}
+
+	if m.ReplyToMessage != nil {
+		msg.ReplyTo = fmt.Sprintf("telegram-%d", m.ReplyToMessage.ID)
+		msg.ReplyToBody = m.ReplyToMessage.Text
+	} else if m.ExternalReply != nil && m.ExternalReply.MessageID != 0 {
+		msg.ReplyTo = fmt.Sprintf("telegram-%d", m.ExternalReply.MessageID)
+	}
+
+	if m.Quote != nil {
+		msg.Quote = m.Quote.Text
+	}
+
+	return msg
 }

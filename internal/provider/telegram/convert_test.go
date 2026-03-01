@@ -11,12 +11,15 @@ func TestConvertMessage(t *testing.T) {
 	tests := []struct {
 		name    string
 		msg     *models.Message
-		wantFrom    string
-		wantProvider string
-		wantChannel string
-		wantDate    time.Time
-		wantID      string
-		wantBody    string
+		wantFrom        string
+		wantProvider    string
+		wantChannel     string
+		wantDate        time.Time
+		wantID          string
+		wantBody        string
+		wantReplyTo     string
+		wantReplyToBody string
+		wantQuote       string
 	}{
 		{
 			name: "user in group",
@@ -111,6 +114,94 @@ func TestConvertMessage(t *testing.T) {
 			wantID:       "telegram-10",
 			wantBody:     "hey",
 		},
+		{
+			name: "reply to message",
+			msg: &models.Message{
+				ID:   50,
+				From: &models.User{Username: "alice"},
+				Date: 1000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+				Text: "my reply",
+				ReplyToMessage: &models.Message{
+					ID:   99,
+					Text: "original",
+				},
+			},
+			wantFrom:        "alice",
+			wantProvider:    "telegram",
+			wantChannel:     "dev",
+			wantDate:        time.Unix(1000, 0).UTC(),
+			wantID:          "telegram-50",
+			wantBody:        "my reply",
+			wantReplyTo:     "telegram-99",
+			wantReplyToBody: "original",
+		},
+		{
+			name: "reply with quote",
+			msg: &models.Message{
+				ID:   51,
+				From: &models.User{Username: "bob"},
+				Date: 2000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+				Text: "replying",
+				ReplyToMessage: &models.Message{
+					ID:   100,
+					Text: "long message here",
+				},
+				Quote: &models.TextQuote{
+					Text: "quoted part",
+				},
+			},
+			wantFrom:        "bob",
+			wantProvider:    "telegram",
+			wantChannel:     "dev",
+			wantDate:        time.Unix(2000, 0).UTC(),
+			wantID:          "telegram-51",
+			wantBody:        "replying",
+			wantReplyTo:     "telegram-100",
+			wantReplyToBody: "long message here",
+			wantQuote:       "quoted part",
+		},
+		{
+			name: "external reply",
+			msg: &models.Message{
+				ID:   52,
+				From: &models.User{Username: "carol"},
+				Date: 3000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+				Text: "ext reply",
+				ExternalReply: &models.ExternalReplyInfo{
+					MessageID: 77,
+				},
+			},
+			wantFrom:     "carol",
+			wantProvider: "telegram",
+			wantChannel:  "dev",
+			wantDate:     time.Unix(3000, 0).UTC(),
+			wantID:       "telegram-52",
+			wantBody:     "ext reply",
+			wantReplyTo:  "telegram-77",
+		},
+		{
+			name: "quote without reply",
+			msg: &models.Message{
+				ID:   53,
+				From: &models.User{Username: "dave"},
+				Date: 4000,
+				Chat: models.Chat{Type: models.ChatTypeGroup, Title: "Dev"},
+				Text: "just quoting",
+				Quote: &models.TextQuote{
+					Text: "some text",
+				},
+			},
+			wantFrom:     "dave",
+			wantProvider: "telegram",
+			wantChannel:  "dev",
+			wantDate:     time.Unix(4000, 0).UTC(),
+			wantID:       "telegram-53",
+			wantBody:     "just quoting",
+			wantQuote:    "some text",
+		},
 	}
 
 	for _, tt := range tests {
@@ -133,6 +224,15 @@ func TestConvertMessage(t *testing.T) {
 			}
 			if got.Body != tt.wantBody {
 				t.Errorf("Body = %q, want %q", got.Body, tt.wantBody)
+			}
+			if got.ReplyTo != tt.wantReplyTo {
+				t.Errorf("ReplyTo = %q, want %q", got.ReplyTo, tt.wantReplyTo)
+			}
+			if got.ReplyToBody != tt.wantReplyToBody {
+				t.Errorf("ReplyToBody = %q, want %q", got.ReplyToBody, tt.wantReplyToBody)
+			}
+			if got.Quote != tt.wantQuote {
+				t.Errorf("Quote = %q, want %q", got.Quote, tt.wantQuote)
 			}
 		})
 	}
