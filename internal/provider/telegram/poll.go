@@ -21,6 +21,12 @@ func Poll(ctx context.Context, token string, initialOffset int64, handler func(m
 				handler(msg, update.EditedMessage.Chat.ID, true)
 				return
 			}
+			if update.ChannelPost != nil {
+				msg := convertMessage(update.ChannelPost)
+				lastOffset = update.ID + 1
+				handler(msg, update.ChannelPost.Chat.ID, false)
+				return
+			}
 			if update.Message == nil {
 				return
 			}

@@ -15,6 +15,11 @@ func convertMessage(m *models.Message) message.Message {
 		if from == "" {
 			from = m.From.FirstName
 		}
+	} else if m.SenderChat != nil {
+		from = m.SenderChat.Username
+		if from == "" {
+			from = m.SenderChat.Title
+		}
 	}
 
 	msg := message.Message{

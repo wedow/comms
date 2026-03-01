@@ -377,6 +377,38 @@ func TestConvertMessage(t *testing.T) {
 			wantMediaFileID: "vidnote-file-321",
 		},
 		{
+			name: "channel post with sender_chat username",
+			msg: &models.Message{
+				ID:         101,
+				Date:       19000,
+				Chat:       models.Chat{Type: models.ChatTypeChannel, Title: "My Channel"},
+				SenderChat: &models.Chat{Username: "mychannel", Title: "My Channel"},
+				Text:       "channel post",
+			},
+			wantFrom:     "mychannel",
+			wantProvider: "telegram",
+			wantChannel:  "my-channel",
+			wantDate:     time.Unix(19000, 0).UTC(),
+			wantID:       "telegram-101",
+			wantBody:     "channel post",
+		},
+		{
+			name: "channel post with sender_chat title only",
+			msg: &models.Message{
+				ID:         102,
+				Date:       20000,
+				Chat:       models.Chat{Type: models.ChatTypeChannel, Title: "News Feed"},
+				SenderChat: &models.Chat{Title: "News Feed"},
+				Text:       "breaking news",
+			},
+			wantFrom:     "News Feed",
+			wantProvider: "telegram",
+			wantChannel:  "news-feed",
+			wantDate:     time.Unix(20000, 0).UTC(),
+			wantID:       "telegram-102",
+			wantBody:     "breaking news",
+		},
+		{
 			name: "forwarded from user",
 			msg: &models.Message{
 				ID:   70,

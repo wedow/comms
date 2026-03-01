@@ -1,6 +1,6 @@
 ---
 id: com-1p1c
-status: open
+status: closed
 deps: [com-hyrn]
 links: []
 created: 2026-03-01T20:37:43Z
