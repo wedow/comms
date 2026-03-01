@@ -1,6 +1,6 @@
 ---
 id: com-9par
-status: open
+status: closed
 deps: [com-yvif]
 links: []
 created: 2026-03-01T13:18:04Z
