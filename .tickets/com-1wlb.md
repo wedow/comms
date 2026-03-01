@@ -1,6 +1,6 @@
 ---
 id: com-1wlb
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-03-01T13:17:22Z
