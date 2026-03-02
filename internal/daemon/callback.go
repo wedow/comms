@@ -1,8 +1,10 @@
 package daemon
 
 import (
+	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 )
@@ -24,16 +26,28 @@ func ExecCallback(command string, env CallbackEnv) error {
 	}
 
 	cmd := exec.Command(shell, "-c", command)
-	cmd.Env = append(os.Environ(),
+
+	// Build clean env, filtering out vars that interfere with child processes
+	var cleanEnv []string
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "CLAUDECODE=") {
+			continue
+		}
+		cleanEnv = append(cleanEnv, e)
+	}
+	cmd.Env = append(cleanEnv,
 		"COMMS_FILE="+env.File,
 		"COMMS_CHANNEL="+env.Channel,
 		"COMMS_PROVIDER="+env.Provider,
 		"COMMS_SENDER="+env.Sender,
 	)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
 
-	go cmd.Run() //nolint:errcheck
+	go func() {
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			log.Printf("callback: %v: %s", err, out)
+		}
+	}()
 
 	return nil
 }
