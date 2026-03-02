@@ -130,6 +130,38 @@ func TestSendCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("positional args as message body", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		var gotText string
+		mock := &mockSendBot{sendFn: func(_ context.Context, p *bot.SendMessageParams) (*models.Message, error) {
+			gotText = p.Text
+			return &models.Message{
+				ID:   1,
+				Chat: models.Chat{ID: 123},
+				Text: p.Text,
+			}, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader(""))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root, "hello", "world!"})
+
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotText != "hello world!" {
+			t.Errorf("text = %q, want %q", gotText, "hello world!")
+		}
+	})
+
 	t.Run("empty stdin", func(t *testing.T) {
 		root := t.TempDir()
 		writeTestConfig(t, root)

@@ -17,7 +17,7 @@ import (
 
 func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:           "send",
+		Use:           "send [message...]",
 		Short:         "Send a message to a channel",
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -37,12 +37,17 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 				return err
 			}
 
-			data, err := io.ReadAll(cmd.InOrStdin())
-			if err != nil {
-				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("read stdin: %v", err)})
-				return err
+			var body string
+			if len(args) > 0 {
+				body = strings.Join(args, " ")
+			} else {
+				data, err := io.ReadAll(cmd.InOrStdin())
+				if err != nil {
+					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("read stdin: %v", err)})
+					return err
+				}
+				body = strings.TrimSpace(string(data))
 			}
-			body := strings.TrimSpace(string(data))
 
 			// When no file is provided, stdin is the message body (must be non-empty).
 			if filePath == "" && body == "" {
