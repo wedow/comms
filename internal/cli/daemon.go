@@ -3,8 +3,9 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -32,7 +33,6 @@ func newDaemonCmd() *cobra.Command {
 
 			pid, pidErr := daemon.ReadPID(root)
 			if pidErr != nil {
-				// No PID file
 				return PrintJSON(cmd.OutOrStdout(), map[string]any{"running": false})
 			}
 
@@ -40,16 +40,15 @@ func newDaemonCmd() *cobra.Command {
 				return PrintJSON(cmd.OutOrStdout(), map[string]any{"running": true, "pid": pid})
 			}
 
-			// Stale PID file: clean up
 			_ = daemon.RemovePID(root)
 			return PrintJSON(cmd.OutOrStdout(), map[string]any{"running": false})
 		},
 	}
 	statusCmd.Flags().String("dir", ".comms", "root directory")
 
-	startCmd := &cobra.Command{
-		Use:           "start",
-		Short:         "Start the comms daemon",
+	runCmd := &cobra.Command{
+		Use:           "run",
+		Short:         "Run the daemon in the foreground",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -72,52 +71,77 @@ func newDaemonCmd() *cobra.Command {
 			return daemon.Run(cmd.Context(), cfg, root, telegramProvider{token: cfg.Telegram.Token})
 		},
 	}
-	startCmd.Flags().String("dir", ".comms", "root directory")
+	runCmd.Flags().String("dir", ".comms", "root directory")
 
-	stopCmd := &cobra.Command{
-		Use:           "stop",
-		Short:         "Stop the comms daemon",
+	startCmd := &cobra.Command{
+		Use:           "start",
+		Short:         "Start the daemon via systemd",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dir, _ := cmd.Flags().GetString("dir")
-			root, err := filepath.Abs(dir)
+			name, _ := cmd.Flags().GetString("name")
+			workDir, err := os.Getwd()
 			if err != nil {
 				return err
 			}
-
-			pid, pidErr := daemon.ReadPID(root)
-			if pidErr != nil {
-				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": "daemon not running"})
-				return fmt.Errorf("daemon not running")
+			svc := serviceName(name, workDir)
+			if err := runSystemctl(cmd.Context(), "--user", "start", svc+".service"); err != nil {
+				return err
 			}
-
-			if !daemon.IsRunning(root) {
-				_ = daemon.RemovePID(root)
-				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": "daemon not running (stale pid)"})
-				return fmt.Errorf("daemon not running (stale pid)")
-			}
-
-			if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
-				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("failed to stop daemon: %v", err)})
-				return fmt.Errorf("failed to stop daemon: %w", err)
-			}
-
-			// Wait briefly for process to exit
-			for i := 0; i < 10; i++ {
-				time.Sleep(100 * time.Millisecond)
-				if !daemon.IsRunning(root) {
-					_ = daemon.RemovePID(root)
-					return PrintJSON(cmd.OutOrStdout(), map[string]string{"status": "stopped"})
-				}
-			}
-
-			return PrintJSON(cmd.OutOrStdout(), map[string]string{"status": "stopping", "pid": fmt.Sprintf("%d", pid)})
+			return PrintJSON(cmd.OutOrStdout(), map[string]string{"status": "started", "service": svc})
 		},
 	}
-	stopCmd.Flags().String("dir", ".comms", "root directory")
+	startCmd.Flags().String("name", "", "service name suffix (default: directory basename)")
 
-	cmd.AddCommand(statusCmd, startCmd, stopCmd)
+	stopCmd := &cobra.Command{
+		Use:           "stop",
+		Short:         "Stop the daemon via systemd",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name, _ := cmd.Flags().GetString("name")
+			workDir, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			svc := serviceName(name, workDir)
+			if err := runSystemctl(cmd.Context(), "--user", "stop", svc+".service"); err != nil {
+				return err
+			}
+			return PrintJSON(cmd.OutOrStdout(), map[string]string{"status": "stopped", "service": svc})
+		},
+	}
+	stopCmd.Flags().String("name", "", "service name suffix (default: directory basename)")
+
+	logsCmd := &cobra.Command{
+		Use:           "logs",
+		Short:         "Show daemon logs",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name, _ := cmd.Flags().GetString("name")
+			follow, _ := cmd.Flags().GetBool("follow")
+			workDir, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			svc := serviceName(name, workDir)
+			jArgs := []string{"--user-unit", svc + ".service", "--no-pager"}
+			if follow {
+				jArgs = append(jArgs, "--follow")
+			} else {
+				jArgs = append(jArgs, "-n", "100")
+			}
+			j := exec.CommandContext(cmd.Context(), "journalctl", jArgs...)
+			j.Stdout = cmd.OutOrStdout()
+			j.Stderr = cmd.ErrOrStderr()
+			return j.Run()
+		},
+	}
+	logsCmd.Flags().String("name", "", "service name suffix (default: directory basename)")
+	logsCmd.Flags().BoolP("follow", "f", false, "follow log output")
+
+	cmd.AddCommand(statusCmd, runCmd, startCmd, stopCmd, logsCmd, newInstallCmd(), newUninstallCmd())
 	return cmd
 }
 

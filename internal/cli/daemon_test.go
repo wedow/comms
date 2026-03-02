@@ -68,62 +68,7 @@ func TestDaemonStatusStalePID(t *testing.T) {
 	}
 }
 
-func TestDaemonStopNoDaemon(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	cmd := newRootCmd()
-	stderr := new(bytes.Buffer)
-	cmd.SetErr(stderr)
-	cmd.SetArgs([]string{"daemon", "stop", "--dir", tmpDir})
-
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("expected error when no daemon is running")
-	}
-
-	var errObj map[string]string
-	if jsonErr := json.Unmarshal(stderr.Bytes(), &errObj); jsonErr != nil {
-		t.Fatalf("stderr is not valid JSON: %v\nstderr: %s", jsonErr, stderr.String())
-	}
-	if errObj["error"] == "" {
-		t.Error("expected non-empty error field in JSON output")
-	}
-}
-
-func TestDaemonStopStalePID(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Write a stale PID (process almost certainly doesn't exist)
-	pidPath := filepath.Join(tmpDir, "daemon.pid")
-	if err := os.WriteFile(pidPath, []byte("9999999"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cmd := newRootCmd()
-	stderr := new(bytes.Buffer)
-	cmd.SetErr(stderr)
-	cmd.SetArgs([]string{"daemon", "stop", "--dir", tmpDir})
-
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("expected error when daemon PID is stale")
-	}
-
-	var errObj map[string]string
-	if jsonErr := json.Unmarshal(stderr.Bytes(), &errObj); jsonErr != nil {
-		t.Fatalf("stderr is not valid JSON: %v\nstderr: %s", jsonErr, stderr.String())
-	}
-	if errObj["error"] == "" {
-		t.Error("expected non-empty error field in JSON output")
-	}
-
-	// Stale PID file should have been cleaned up
-	if _, err := os.Stat(pidPath); !os.IsNotExist(err) {
-		t.Error("stale PID file should have been removed")
-	}
-}
-
-func TestDaemonStartAlreadyRunning(t *testing.T) {
+func TestDaemonRunAlreadyRunning(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Write a config.toml so config.Load succeeds
@@ -146,7 +91,7 @@ func TestDaemonStartAlreadyRunning(t *testing.T) {
 	cmd := newRootCmd()
 	stderr := new(bytes.Buffer)
 	cmd.SetErr(stderr)
-	cmd.SetArgs([]string{"daemon", "start", "--dir", tmpDir})
+	cmd.SetArgs([]string{"daemon", "run", "--dir", tmpDir})
 
 	err = cmd.Execute()
 	if err == nil {
