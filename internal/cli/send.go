@@ -111,7 +111,19 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 			if format == "" {
 				format = "markdown"
 			}
+
+			// Check for existing unreads before writing
+			chanDir := sent.Provider + "-" + sent.Channel
+			cursor, _ := store.ReadCursor(root, chanDir)
+			unreads, _ := store.ListMessagesAfter(root, chanDir, cursor)
+
 			store.WriteMessage(root, sent, format)
+
+			// If no unreads existed, advance cursor past sent message
+			// so the sender's own message doesn't show up in unread
+			if len(unreads) == 0 {
+				store.WriteCursor(root, chanDir, sent.Date)
+			}
 
 			return PrintJSON(cmd.OutOrStdout(), map[string]any{"ok": true, "channel": channel})
 		},

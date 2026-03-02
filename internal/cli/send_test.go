@@ -8,9 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/wedow/comms/internal/message"
 	"github.com/wedow/comms/internal/provider/telegram"
 	"github.com/wedow/comms/internal/store"
 )
@@ -524,6 +526,103 @@ func TestSendCmd(t *testing.T) {
 		}
 		if !found {
 			t.Error("no .md file found in channel directory")
+		}
+	})
+
+	t.Run("advances cursor when no unreads", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		mock := &mockSendBot{sendFn: func(_ context.Context, p *bot.SendMessageParams) (*models.Message, error) {
+			return &models.Message{
+				ID:   50,
+				Date: 1709308800,
+				Chat: models.Chat{ID: 123, Type: "private"},
+				Text: p.Text,
+				From: &models.User{Username: "mybot"},
+			}, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetIn(strings.NewReader("hello"))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Cursor should have advanced past the sent message
+		cursor, err := store.ReadCursor(root, "telegram-dm-123")
+		if err != nil {
+			t.Fatalf("read cursor: %v", err)
+		}
+		if cursor.IsZero() {
+			t.Fatal("cursor should be set after send with no unreads")
+		}
+
+		// Unread should return nothing
+		unreads, _ := store.ListMessagesAfter(root, "telegram-dm-123", cursor)
+		if len(unreads) != 0 {
+			t.Errorf("expected 0 unreads, got %d", len(unreads))
+		}
+	})
+
+	t.Run("preserves cursor when unreads exist", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		// Write an existing unread message
+		// Provider + Channel must match what telegram.Send returns:
+		// Provider="telegram", Channel="dm-123" → dir "telegram-dm-123"
+		existing := message.Message{
+			From:     "someone",
+			Provider: "telegram",
+			Channel:  "dm-123",
+			Date:     time.Date(2024, 3, 1, 15, 0, 0, 0, time.UTC),
+			ID:       "telegram-49",
+			Body:     "hey there",
+		}
+		store.WriteMessage(root, existing, "markdown")
+
+		mock := &mockSendBot{sendFn: func(_ context.Context, p *bot.SendMessageParams) (*models.Message, error) {
+			return &models.Message{
+				ID:   50,
+				Date: 1709308800, // 2024-03-01T16:00:00Z (after the existing msg)
+				Chat: models.Chat{ID: 123, Type: "private"},
+				Text: p.Text,
+				From: &models.User{Username: "mybot"},
+			}, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(&bytes.Buffer{})
+		cmd.SetIn(strings.NewReader("reply"))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Cursor should still be zero (not advanced)
+		cursor, err := store.ReadCursor(root, "telegram-dm-123")
+		if err != nil {
+			t.Fatalf("read cursor: %v", err)
+		}
+		if !cursor.IsZero() {
+			t.Errorf("cursor should be zero when unreads exist, got %v", cursor)
+		}
+
+		// Both messages should be unread
+		unreads, _ := store.ListMessagesAfter(root, "telegram-dm-123", cursor)
+		if len(unreads) != 2 {
+			t.Errorf("expected 2 unreads, got %d", len(unreads))
 		}
 	})
 
