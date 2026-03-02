@@ -1,11 +1,18 @@
 package daemon
 
 import (
+	"context"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func testEnv() CallbackEnv {
+	return CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s"}
+}
 
 func TestExecCallbackEnvVars(t *testing.T) {
 	tmp := t.TempDir()
@@ -18,10 +25,7 @@ func TestExecCallbackEnvVars(t *testing.T) {
 		Sender:   "alice",
 	}
 
-	err := ExecCallback("env > "+outFile, env)
-	if err != nil {
-		t.Fatalf("ExecCallback: %v", err)
-	}
+	ExecCallback(context.Background(), "env > "+outFile, env, nil)
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -48,11 +52,7 @@ func TestExecCallbackUsesShell(t *testing.T) {
 	outFile := tmp + "/shell.txt"
 
 	// Pipe is a shell feature; if this works, the command ran through a shell
-	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s"}
-	err := ExecCallback("echo hello | tr h H > "+outFile, env)
-	if err != nil {
-		t.Fatalf("ExecCallback: %v", err)
-	}
+	ExecCallback(context.Background(), "echo hello | tr h H > "+outFile, testEnv(), nil)
 
 	time.Sleep(200 * time.Millisecond)
 
@@ -68,18 +68,40 @@ func TestExecCallbackUsesShell(t *testing.T) {
 }
 
 func TestExecCallbackAsync(t *testing.T) {
-	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s"}
-
 	start := time.Now()
-	err := ExecCallback("sleep 5", env)
+	ExecCallback(context.Background(), "sleep 5", testEnv(), nil)
 	elapsed := time.Since(start)
-
-	if err != nil {
-		t.Fatalf("ExecCallback: %v", err)
-	}
 
 	if elapsed > 100*time.Millisecond {
 		t.Errorf("ExecCallback blocked for %v, expected async return", elapsed)
+	}
+}
+
+func TestExecCallbackSendsTyping(t *testing.T) {
+	var count atomic.Int32
+	typing := &fakeTyping{onSend: func() { count.Add(1) }}
+
+	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s", ChatID: 123}
+	ExecCallback(context.Background(), "sleep 0.1", env, typing)
+
+	time.Sleep(300 * time.Millisecond)
+
+	if got := count.Load(); got < 1 {
+		t.Errorf("expected at least 1 typing call, got %d", got)
+	}
+}
+
+func TestExecCallbackNoTypingWithoutChatID(t *testing.T) {
+	var count atomic.Int32
+	typing := &fakeTyping{onSend: func() { count.Add(1) }}
+
+	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s", ChatID: 0}
+	ExecCallback(context.Background(), "sleep 0.1", env, typing)
+
+	time.Sleep(300 * time.Millisecond)
+
+	if got := count.Load(); got != 0 {
+		t.Errorf("expected 0 typing calls without ChatID, got %d", got)
 	}
 }
 
@@ -89,8 +111,8 @@ func TestCallbackRunnerDebouncesRapidCalls(t *testing.T) {
 
 	cmd := "printf x >> " + marker
 	delay := 100 * time.Millisecond
-	runner := NewCallbackRunner(cmd, delay)
-	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s"}
+	runner := NewCallbackRunner(context.Background(), cmd, delay, nil)
+	env := testEnv()
 
 	// Rapid calls — each resets the timer
 	runner.Run(env)
@@ -121,8 +143,8 @@ func TestCallbackRunnerFiresSeparatelyAfterQuietPeriod(t *testing.T) {
 
 	cmd := "printf x >> " + marker
 	delay := 50 * time.Millisecond
-	runner := NewCallbackRunner(cmd, delay)
-	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s"}
+	runner := NewCallbackRunner(context.Background(), cmd, delay, nil)
+	env := testEnv()
 
 	// First call
 	runner.Run(env)
@@ -146,8 +168,8 @@ func TestCallbackRunnerZeroDelayFiresImmediately(t *testing.T) {
 	marker := tmp + "/count.txt"
 
 	cmd := "printf x >> " + marker
-	runner := NewCallbackRunner(cmd, 0)
-	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s"}
+	runner := NewCallbackRunner(context.Background(), cmd, 0, nil)
+	env := testEnv()
 
 	runner.Run(env)
 	runner.Run(env)
@@ -169,7 +191,7 @@ func TestCallbackRunnerUsesLatestEnv(t *testing.T) {
 
 	cmd := "printf $COMMS_SENDER > " + outFile
 	delay := 50 * time.Millisecond
-	runner := NewCallbackRunner(cmd, delay)
+	runner := NewCallbackRunner(context.Background(), cmd, delay, nil)
 
 	runner.Run(CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "first"})
 	runner.Run(CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "second"})
@@ -184,4 +206,45 @@ func TestCallbackRunnerUsesLatestEnv(t *testing.T) {
 	if got := strings.TrimSpace(string(data)); got != "third" {
 		t.Errorf("sender = %q, want 'third' (latest)", got)
 	}
+}
+
+func TestStartTypingLoopRepeats(t *testing.T) {
+	var mu sync.Mutex
+	var chatIDs []int64
+	typing := &fakeTyping{onSendWith: func(chatID int64) {
+		mu.Lock()
+		chatIDs = append(chatIDs, chatID)
+		mu.Unlock()
+	}}
+
+	stop := startTypingLoop(context.Background(), typing, 42)
+	// Immediate send + wait for one tick (using short interval isn't possible
+	// since the loop hardcodes 5s, so we just verify the immediate call)
+	time.Sleep(100 * time.Millisecond)
+	stop()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(chatIDs) < 1 {
+		t.Fatal("expected at least 1 typing call")
+	}
+	if chatIDs[0] != 42 {
+		t.Errorf("chatID = %d, want 42", chatIDs[0])
+	}
+}
+
+// fakeTyping implements TypingIndicator for tests.
+type fakeTyping struct {
+	onSend     func()
+	onSendWith func(chatID int64)
+}
+
+func (f *fakeTyping) SendTyping(_ context.Context, chatID int64) error {
+	if f.onSend != nil {
+		f.onSend()
+	}
+	if f.onSendWith != nil {
+		f.onSendWith(chatID)
+	}
+	return nil
 }

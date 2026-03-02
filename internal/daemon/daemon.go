@@ -33,10 +33,15 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 		return err
 	}
 
+	var typing TypingIndicator
+	if ti, ok := p.(TypingIndicator); ok {
+		typing = ti
+	}
+
 	var cb *CallbackRunner
 	if cfg.Callback.Command != "" {
 		delay, _ := time.ParseDuration(cfg.Callback.Delay)
-		cb = NewCallbackRunner(cfg.Callback.Command, delay)
+		cb = NewCallbackRunner(ctx, cfg.Callback.Command, delay, typing)
 	}
 
 	finalOffset, err := p.Poll(ctx, offset, func(msg message.Message, chatID int64, isEdit bool) {
@@ -71,6 +76,7 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 					Channel:  channelDir,
 					Provider: msg.Provider,
 					Sender:   msg.From,
+					ChatID:   chatID,
 				})
 			}
 			return
@@ -95,6 +101,7 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 				Channel:  channelDir,
 				Provider: msg.Provider,
 				Sender:   msg.From,
+				ChatID:   chatID,
 			})
 		}
 	}, func(channel string, msgID int, from string, emoji string, date time.Time) {
@@ -117,11 +124,13 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 			log.Printf("reaction: cursor reset failed: %v", err)
 		}
 		if cb != nil {
+			reactionChatID, _ := store.ReadChatID(root, channel)
 			cb.Run(CallbackEnv{
 				File:     path,
 				Channel:  channel,
 				Provider: "telegram",
 				Sender:   from,
+				ChatID:   reactionChatID,
 			})
 		}
 	})
