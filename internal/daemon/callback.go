@@ -3,6 +3,7 @@ package daemon
 import (
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 )
 
@@ -37,23 +38,42 @@ func ExecCallback(command string, env CallbackEnv) error {
 	return nil
 }
 
-// CallbackRunner rate-limits callback execution using a global delay.
+// CallbackRunner debounces callback execution. Each call to Run resets a timer;
+// the callback fires once after delay elapses with no new calls.
+// With zero delay, callbacks fire immediately.
 type CallbackRunner struct {
 	command string
 	delay   time.Duration
-	lastRun time.Time
+
+	mu      sync.Mutex
+	timer   *time.Timer
+	lastEnv CallbackEnv
 }
 
-// NewCallbackRunner creates a CallbackRunner with the given command and minimum delay between executions.
+// NewCallbackRunner creates a CallbackRunner with the given command and debounce delay.
 func NewCallbackRunner(command string, delay time.Duration) *CallbackRunner {
 	return &CallbackRunner{command: command, delay: delay}
 }
 
-// Run executes the callback if enough time has elapsed since the last run.
+// Run schedules the callback. With debounce delay, each call resets the timer
+// so the callback only fires after a quiet period.
 func (r *CallbackRunner) Run(env CallbackEnv) {
-	if time.Since(r.lastRun) < r.delay {
+	if r.delay == 0 {
+		ExecCallback(r.command, env) //nolint:errcheck
 		return
 	}
-	r.lastRun = time.Now()
-	ExecCallback(r.command, env) //nolint:errcheck
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.lastEnv = env
+	if r.timer != nil {
+		r.timer.Stop()
+	}
+	r.timer = time.AfterFunc(r.delay, func() {
+		r.mu.Lock()
+		e := r.lastEnv
+		r.mu.Unlock()
+		ExecCallback(r.command, e) //nolint:errcheck
+	})
 }

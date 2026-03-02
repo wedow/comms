@@ -83,30 +83,39 @@ func TestExecCallbackAsync(t *testing.T) {
 	}
 }
 
-func TestCallbackRunnerThrottlesRapidCalls(t *testing.T) {
+func TestCallbackRunnerDebouncesRapidCalls(t *testing.T) {
 	tmp := t.TempDir()
 	marker := tmp + "/count.txt"
 
-	// Append "x" on each execution; count x's to know how many times it ran
 	cmd := "printf x >> " + marker
-	runner := NewCallbackRunner(cmd, 1*time.Second)
+	delay := 100 * time.Millisecond
+	runner := NewCallbackRunner(cmd, delay)
 	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s"}
 
+	// Rapid calls — each resets the timer
 	runner.Run(env)
-	runner.Run(env) // should be throttled
+	runner.Run(env)
+	runner.Run(env)
 
-	time.Sleep(200 * time.Millisecond) // let async exec finish
+	// Callback hasn't fired yet (timer just reset)
+	time.Sleep(50 * time.Millisecond)
+	if _, err := os.Stat(marker); err == nil {
+		t.Error("callback should not fire before debounce delay")
+	}
+
+	// Wait for debounce to fire
+	time.Sleep(delay + 100*time.Millisecond)
 
 	data, err := os.ReadFile(marker)
 	if err != nil {
 		t.Fatalf("reading marker file: %v", err)
 	}
 	if got := len(data); got != 1 {
-		t.Errorf("expected 1 execution, got %d", got)
+		t.Errorf("expected 1 execution after debounce, got %d", got)
 	}
 }
 
-func TestCallbackRunnerAllowsAfterDelay(t *testing.T) {
+func TestCallbackRunnerFiresSeparatelyAfterQuietPeriod(t *testing.T) {
 	tmp := t.TempDir()
 	marker := tmp + "/count.txt"
 
@@ -115,11 +124,13 @@ func TestCallbackRunnerAllowsAfterDelay(t *testing.T) {
 	runner := NewCallbackRunner(cmd, delay)
 	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s"}
 
+	// First call
 	runner.Run(env)
-	time.Sleep(delay + 50*time.Millisecond) // wait past the delay
-	runner.Run(env)
+	time.Sleep(delay + 100*time.Millisecond) // wait for it to fire
 
-	time.Sleep(200 * time.Millisecond) // let async exec finish
+	// Second call after quiet period
+	runner.Run(env)
+	time.Sleep(delay + 100*time.Millisecond) // wait for it to fire
 
 	data, err := os.ReadFile(marker)
 	if err != nil {
@@ -127,5 +138,50 @@ func TestCallbackRunnerAllowsAfterDelay(t *testing.T) {
 	}
 	if got := len(data); got != 2 {
 		t.Errorf("expected 2 executions, got %d", got)
+	}
+}
+
+func TestCallbackRunnerZeroDelayFiresImmediately(t *testing.T) {
+	tmp := t.TempDir()
+	marker := tmp + "/count.txt"
+
+	cmd := "printf x >> " + marker
+	runner := NewCallbackRunner(cmd, 0)
+	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s"}
+
+	runner.Run(env)
+	runner.Run(env)
+
+	time.Sleep(200 * time.Millisecond)
+
+	data, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("reading marker file: %v", err)
+	}
+	if got := len(data); got != 2 {
+		t.Errorf("expected 2 executions with zero delay, got %d", got)
+	}
+}
+
+func TestCallbackRunnerUsesLatestEnv(t *testing.T) {
+	tmp := t.TempDir()
+	outFile := tmp + "/sender.txt"
+
+	cmd := "printf $COMMS_SENDER > " + outFile
+	delay := 50 * time.Millisecond
+	runner := NewCallbackRunner(cmd, delay)
+
+	runner.Run(CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "first"})
+	runner.Run(CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "second"})
+	runner.Run(CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "third"})
+
+	time.Sleep(delay + 200*time.Millisecond)
+
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("reading output: %v", err)
+	}
+	if got := strings.TrimSpace(string(data)); got != "third" {
+		t.Errorf("sender = %q, want 'third' (latest)", got)
 	}
 }
