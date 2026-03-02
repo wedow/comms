@@ -11,7 +11,7 @@ import (
 func newUnreadCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "unread",
-		Short: "List unread messages and advance cursors",
+		Short: "List unread messages",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir, _ := cmd.Flags().GetString("dir")
 			channel, _ := cmd.Flags().GetString("channel")
@@ -42,7 +42,6 @@ func newUnreadCmd() *cobra.Command {
 					return err
 				}
 
-				var newest time.Time
 				for _, p := range paths {
 					msg, err := store.ReadMessage(p)
 					if err != nil {
@@ -61,15 +60,6 @@ func newUnreadCmd() *cobra.Command {
 						Caption   string    `json:"caption,omitempty"`
 						ThreadID  string    `json:"thread_id,omitempty"`
 					}{msg.From, msg.Provider, msg.Channel, msg.Date, msg.ID, msg.Body, p, msg.MediaType, msg.MediaURL, msg.Caption, msg.ThreadID}); err != nil {
-						return err
-					}
-					if msg.Date.After(newest) {
-						newest = msg.Date
-					}
-				}
-
-				if !newest.IsZero() {
-					if err := store.WriteCursor(root, ch, newest); err != nil {
 						return err
 					}
 				}

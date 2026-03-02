@@ -10,6 +10,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/spf13/cobra"
 	"github.com/wedow/comms/internal/config"
+	"github.com/wedow/comms/internal/message"
 	"github.com/wedow/comms/internal/provider/telegram"
 	"github.com/wedow/comms/internal/store"
 )
@@ -78,6 +79,7 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 				return err
 			}
 
+			var sent message.Message
 			if filePath != "" {
 				f, err := os.Open(filePath)
 				if err != nil {
@@ -91,16 +93,25 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 					mediaType = telegram.DetectMediaType(filepath.Base(filePath))
 				}
 
-				if _, err := telegram.SendMedia(cmd.Context(), api, chatID, f, filepath.Base(filePath), mediaType, body, replyToID, threadID, parseMode); err != nil {
+				sent, err = telegram.SendMedia(cmd.Context(), api, chatID, f, filepath.Base(filePath), mediaType, body, replyToID, threadID, parseMode)
+				if err != nil {
 					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
 					return err
 				}
 			} else {
-				if _, err := telegram.Send(cmd.Context(), api, chatID, body, replyToID, threadID, parseMode); err != nil {
+				sent, err = telegram.Send(cmd.Context(), api, chatID, body, replyToID, threadID, parseMode)
+				if err != nil {
 					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
 					return err
 				}
 			}
+
+			// Write sent message to local store
+			format := cfg.General.Format
+			if format == "" {
+				format = "markdown"
+			}
+			store.WriteMessage(root, sent, format)
 
 			return PrintJSON(cmd.OutOrStdout(), map[string]any{"ok": true, "channel": channel})
 		},

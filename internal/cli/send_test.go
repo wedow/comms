@@ -473,6 +473,60 @@ func TestSendCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("writes local message file", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "general", 123)
+
+		mock := &mockSendBot{sendFn: func(_ context.Context, p *bot.SendMessageParams) (*models.Message, error) {
+			return &models.Message{
+				ID:   42,
+				Date: 1709308800, // 2024-03-01T16:00:00Z
+				Chat: models.Chat{ID: 123, Type: "private"},
+				Text: p.Text,
+				From: &models.User{Username: "mybot"},
+			}, nil
+		}}
+
+		cmd := newSendCmd(mockBotFactory(mock))
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetIn(strings.NewReader("saved locally"))
+		cmd.SetArgs([]string{"--channel", "general", "--dir", root})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v (stderr: %s)", err, errBuf.String())
+		}
+
+		// Check that a .md file was written in the channel directory
+		channelDir := filepath.Join(root, "telegram-dm-123")
+		entries, err := os.ReadDir(channelDir)
+		if err != nil {
+			t.Fatalf("channel dir not created: %v", err)
+		}
+		found := false
+		for _, e := range entries {
+			if strings.HasSuffix(e.Name(), ".md") {
+				found = true
+				msg, err := store.ReadMessage(filepath.Join(channelDir, e.Name()))
+				if err != nil {
+					t.Fatalf("read message: %v", err)
+				}
+				if msg.From != "mybot" {
+					t.Errorf("from = %q, want mybot", msg.From)
+				}
+				if msg.Body != "saved locally" {
+					t.Errorf("body = %q, want 'saved locally'", msg.Body)
+				}
+			}
+		}
+		if !found {
+			t.Error("no .md file found in channel directory")
+		}
+	})
+
 	t.Run("file not found", func(t *testing.T) {
 		root := t.TempDir()
 		writeTestConfig(t, root)

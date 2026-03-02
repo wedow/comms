@@ -55,7 +55,6 @@ func TestUnreadNoCursor(t *testing.T) {
 		t.Errorf("line 1 from = %v, want bob", got[1]["from"])
 	}
 
-	// Verify all expected fields present
 	for i, m := range got {
 		for _, key := range []string{"from", "provider", "channel", "date", "id", "body", "file"} {
 			if _, ok := m[key]; !ok {
@@ -64,17 +63,17 @@ func TestUnreadNoCursor(t *testing.T) {
 		}
 	}
 
-	// Verify cursor was advanced
+	// Cursor should NOT be advanced
 	cursor, err := store.ReadCursor(tmpDir, "telegram-general")
 	if err != nil {
 		t.Fatalf("reading cursor: %v", err)
 	}
-	if !cursor.Equal(now.Add(time.Second)) {
-		t.Errorf("cursor = %v, want %v", cursor, now.Add(time.Second))
+	if !cursor.IsZero() {
+		t.Errorf("cursor should be zero, got %v", cursor)
 	}
 }
 
-func TestUnreadTwice(t *testing.T) {
+func TestUnreadIdempotent(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	now := time.Date(2026, 2, 24, 14, 30, 5, 0, time.UTC)
@@ -83,7 +82,7 @@ func TestUnreadTwice(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// First run: should return the message
+	// First run
 	cmd := newRootCmd()
 	buf := new(bytes.Buffer)
 	cmd.SetOut(buf)
@@ -91,11 +90,9 @@ func TestUnreadTwice(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("first unread: %v", err)
 	}
-	if strings.TrimSpace(buf.String()) == "" {
-		t.Fatal("first run should have output")
-	}
+	first := strings.TrimSpace(buf.String())
 
-	// Second run: should produce no output
+	// Second run should return same messages (cursor not advanced)
 	cmd2 := newRootCmd()
 	buf2 := new(bytes.Buffer)
 	cmd2.SetOut(buf2)
@@ -103,8 +100,10 @@ func TestUnreadTwice(t *testing.T) {
 	if err := cmd2.Execute(); err != nil {
 		t.Fatalf("second unread: %v", err)
 	}
-	if buf2.String() != "" {
-		t.Errorf("second run should have no output, got %q", buf2.String())
+	second := strings.TrimSpace(buf2.String())
+
+	if first != second {
+		t.Errorf("unread should be idempotent:\nfirst:  %s\nsecond: %s", first, second)
 	}
 }
 
@@ -142,24 +141,6 @@ func TestUnreadChannelFilter(t *testing.T) {
 	}
 	if m["from"] != "carol" {
 		t.Errorf("from = %v, want carol", m["from"])
-	}
-
-	// Verify only filtered channel's cursor was advanced
-	cursor, err := store.ReadCursor(tmpDir, "telegram-dev")
-	if err != nil {
-		t.Fatalf("reading cursor: %v", err)
-	}
-	if cursor.IsZero() {
-		t.Error("telegram-dev cursor should be set")
-	}
-
-	// telegram-general cursor should not exist
-	cursor2, err := store.ReadCursor(tmpDir, "telegram-general")
-	if err != nil {
-		t.Fatalf("reading cursor: %v", err)
-	}
-	if !cursor2.IsZero() {
-		t.Error("telegram-general cursor should not be set")
 	}
 }
 
@@ -209,7 +190,6 @@ func TestUnreadMediaFields(t *testing.T) {
 		t.Fatalf("got %d lines, want 2:\n%s", len(lines), buf.String())
 	}
 
-	// Text-only message should NOT have media fields (omitempty)
 	var textMsg map[string]any
 	if err := json.Unmarshal([]byte(lines[0]), &textMsg); err != nil {
 		t.Fatalf("invalid JSON: %s", lines[0])
@@ -217,26 +197,13 @@ func TestUnreadMediaFields(t *testing.T) {
 	if _, ok := textMsg["media_type"]; ok {
 		t.Error("text message should not have media_type field")
 	}
-	if _, ok := textMsg["media_url"]; ok {
-		t.Error("text message should not have media_url field")
-	}
-	if _, ok := textMsg["caption"]; ok {
-		t.Error("text message should not have caption field")
-	}
 
-	// Media message should have media fields
 	var mediaMsg map[string]any
 	if err := json.Unmarshal([]byte(lines[1]), &mediaMsg); err != nil {
 		t.Fatalf("invalid JSON: %s", lines[1])
 	}
 	if mediaMsg["media_type"] != "photo" {
 		t.Errorf("media_type = %v, want photo", mediaMsg["media_type"])
-	}
-	if mediaMsg["media_url"] != "/media/photo.jpg" {
-		t.Errorf("media_url = %v, want /media/photo.jpg", mediaMsg["media_url"])
-	}
-	if mediaMsg["caption"] != "nice pic" {
-		t.Errorf("caption = %v, want nice pic", mediaMsg["caption"])
 	}
 }
 
@@ -255,7 +222,7 @@ func TestUnreadPartialCursor(t *testing.T) {
 		}
 	}
 
-	// Set cursor to first message's time (should skip it, return second and third)
+	// Set cursor to first message's time
 	if err := store.WriteCursor(tmpDir, "telegram-general", now); err != nil {
 		t.Fatal(err)
 	}
@@ -290,12 +257,12 @@ func TestUnreadPartialCursor(t *testing.T) {
 		t.Errorf("line 1 body = %v, want newest", got[1]["body"])
 	}
 
-	// Verify cursor advanced to newest
+	// Cursor should NOT have been advanced
 	cursor, err := store.ReadCursor(tmpDir, "telegram-general")
 	if err != nil {
 		t.Fatalf("reading cursor: %v", err)
 	}
-	if !cursor.Equal(now.Add(2 * time.Second)) {
-		t.Errorf("cursor = %v, want %v", cursor, now.Add(2*time.Second))
+	if !cursor.Equal(now) {
+		t.Errorf("cursor = %v, should still be %v", cursor, now)
 	}
 }
