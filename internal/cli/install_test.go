@@ -54,8 +54,8 @@ func TestServiceName(t *testing.T) {
 
 func TestUnitTemplateRendering(t *testing.T) {
 	var buf bytes.Buffer
-	err := unitTmpl.Execute(&buf, struct{ Name, WorkDir, Binary string }{
-		"comms-stuart", "/home/user/p/stuart", "/usr/local/bin/comms",
+	err := unitTmpl.Execute(&buf, struct{ Name, WorkDir, Binary, Path string }{
+		"comms-stuart", "/home/user/p/stuart", "/usr/local/bin/comms", "/usr/local/bin:/usr/bin",
 	})
 	if err != nil {
 		t.Fatalf("template execute: %v", err)

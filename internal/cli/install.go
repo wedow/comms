@@ -23,6 +23,7 @@ After=network-online.target
 [Service]
 Type=simple
 WorkingDirectory={{.WorkDir}}
+Environment=PATH={{.Path}}
 ExecStart={{.Binary}} daemon run --dir .comms
 Restart=on-failure
 RestartSec=5
@@ -162,7 +163,7 @@ func newInstallCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			err = unitTmpl.Execute(f, struct{ Name, WorkDir, Binary string }{svc, workDir, binary})
+			err = unitTmpl.Execute(f, struct{ Name, WorkDir, Binary, Path string }{svc, workDir, binary, os.Getenv("PATH")})
 			f.Close()
 			if err != nil {
 				return err
