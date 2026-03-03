@@ -81,6 +81,7 @@ func TestRunWritesPIDFile(t *testing.T) {
 
 func TestRunWritesMessages(t *testing.T) {
 	root := t.TempDir()
+	store.AddAllowedID(root, 123)
 	msg := testMessage("alice", "general", "hello world")
 	fp := &fakeProvider{
 		messages:    []message.Message{msg},
@@ -115,6 +116,7 @@ func TestRunWritesMessages(t *testing.T) {
 
 func TestRunWritesChatID(t *testing.T) {
 	root := t.TempDir()
+	store.AddAllowedID(root, -1001234)
 	msg := testMessage("alice", "general", "hello")
 	fp := &fakeProvider{
 		messages:    []message.Message{msg},
@@ -180,6 +182,7 @@ func TestRunRemovesPIDOnExit(t *testing.T) {
 
 func TestRunHandlesEditedMessage(t *testing.T) {
 	root := t.TempDir()
+	store.AddAllowedID(root, 123)
 
 	// First, write an original message
 	original := message.Message{
@@ -257,7 +260,9 @@ func TestRunHandlesEditedMessage(t *testing.T) {
 func TestRunHandlesReaction(t *testing.T) {
 	root := t.TempDir()
 
-	// Write an original message
+	// Write an original message and allow the chat
+	store.AddAllowedID(root, 123)
+	store.WriteChatID(root, "telegram-general", 123)
 	original := message.Message{
 		From:     "alice",
 		Provider: "telegram",
@@ -335,6 +340,7 @@ func TestRunDownloadsMedia(t *testing.T) {
 	defer ts.Close()
 
 	root := t.TempDir()
+	store.AddAllowedID(root, 123)
 	msg := message.Message{
 		From:        "alice",
 		Provider:    "telegram",
@@ -397,6 +403,7 @@ func TestRunSkipsMediaOnDownloadError(t *testing.T) {
 	defer ts.Close()
 
 	root := t.TempDir()
+	store.AddAllowedID(root, 123)
 	msg := message.Message{
 		From:        "alice",
 		Provider:    "telegram",
@@ -438,9 +445,9 @@ func TestRunSkipsMediaOnDownloadError(t *testing.T) {
 	}
 }
 
-func TestAllowedIDsAcceptsAllWhenEmpty(t *testing.T) {
+func TestAllowedIDsRejectsAllWhenEmpty(t *testing.T) {
 	root := t.TempDir()
-	// No allowed_ids file — should accept all messages
+	// No allowed_ids file — should reject all messages
 	msg := testMessage("alice", "general", "hello")
 	fp := &fakeProvider{
 		messages:    []message.Message{msg},
@@ -453,8 +460,8 @@ func TestAllowedIDsAcceptsAllWhenEmpty(t *testing.T) {
 	}
 
 	paths, _ := store.ListMessages(root, "telegram-general")
-	if len(paths) != 1 {
-		t.Errorf("expected 1 message (no allowlist), got %d", len(paths))
+	if len(paths) != 0 {
+		t.Errorf("expected 0 messages (no allowlist), got %d", len(paths))
 	}
 }
 

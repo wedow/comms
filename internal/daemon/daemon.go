@@ -42,7 +42,7 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 		allowed[id] = true
 	}
 	if len(allowed) == 0 {
-		log.Printf("warning: no allowed_ids configured, accepting all messages")
+		log.Printf("warning: no allowed_ids configured, rejecting all messages")
 	}
 
 	var typing TypingIndicator
@@ -57,7 +57,7 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 	}
 
 	finalOffset, err := p.Poll(ctx, offset, func(msg message.Message, chatID int64, isEdit bool) {
-		if len(allowed) > 0 && !allowed[chatID] {
+		if !allowed[chatID] {
 			log.Printf("rejected message from chat %d (not in allowed_ids)", chatID)
 			return
 		}
@@ -122,12 +122,10 @@ func Run(ctx context.Context, cfg config.Config, root string, p Provider) error 
 			})
 		}
 	}, func(channel string, msgID int, from string, emoji string, date time.Time) {
-		if len(allowed) > 0 {
-			chatID, err := store.ReadChatID(root, channel)
-			if err != nil || !allowed[chatID] {
-				log.Printf("rejected reaction for chat %q (not in allowed_ids)", channel)
-				return
-			}
+		chatID, err := store.ReadChatID(root, channel)
+		if err != nil || !allowed[chatID] {
+			log.Printf("rejected reaction for chat %q (not in allowed_ids)", channel)
+			return
 		}
 
 		msgIDStr := fmt.Sprintf("telegram-%d", msgID)

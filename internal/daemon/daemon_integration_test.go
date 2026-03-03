@@ -30,6 +30,7 @@ func (f *blockingFakeProvider) Poll(ctx context.Context, initialOffset int64, ha
 
 func TestIntegrationDaemonLifecycle(t *testing.T) {
 	root := t.TempDir()
+	store.AddAllowedID(root, -1001234)
 	markerFile := filepath.Join(t.TempDir(), "callback-fired")
 
 	msg := message.Message{
