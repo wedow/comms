@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/wedow/comms/internal/store"
 )
 
 func TestChannelsCommand(t *testing.T) {
@@ -81,5 +83,26 @@ func TestChannelsProviderExtraction(t *testing.T) {
 	want := `{"name":"discord-my-server","provider":"discord","path":"` + filepath.Join(tmpDir, "discord-my-server") + `"}` + "\n"
 	if buf.String() != want {
 		t.Errorf("got %q, want %q", buf.String(), want)
+	}
+}
+
+func TestChannelsIncludesChatID(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	os.MkdirAll(filepath.Join(tmpDir, "telegram-general"), 0o755)
+	store.WriteChatID(tmpDir, "telegram-general", -1001234)
+
+	cmd := newRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"channels", "--dir", tmpDir})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("channels command: %v", err)
+	}
+
+	want := `{"name":"telegram-general","provider":"telegram","path":"` + filepath.Join(tmpDir, "telegram-general") + `","chat_id":-1001234}`
+	if !strings.Contains(buf.String(), want) {
+		t.Errorf("got %q, want line containing %q", buf.String(), want)
 	}
 }

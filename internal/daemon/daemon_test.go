@@ -437,3 +437,109 @@ func TestRunSkipsMediaOnDownloadError(t *testing.T) {
 		t.Errorf("MediaURL = %q, want empty on download error", written.MediaURL)
 	}
 }
+
+func TestAllowedIDsAcceptsAllWhenEmpty(t *testing.T) {
+	root := t.TempDir()
+	// No allowed_ids file — should accept all messages
+	msg := testMessage("alice", "general", "hello")
+	fp := &fakeProvider{
+		messages:    []message.Message{msg},
+		chatIDs:     []int64{123},
+		finalOffset: 1,
+	}
+
+	if err := Run(context.Background(), testConfig(), root, fp); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	paths, _ := store.ListMessages(root, "telegram-general")
+	if len(paths) != 1 {
+		t.Errorf("expected 1 message (no allowlist), got %d", len(paths))
+	}
+}
+
+func TestAllowedIDsAcceptsPermittedChat(t *testing.T) {
+	root := t.TempDir()
+	store.AddAllowedID(root, 123)
+
+	msg := testMessage("alice", "general", "hello")
+	fp := &fakeProvider{
+		messages:    []message.Message{msg},
+		chatIDs:     []int64{123},
+		finalOffset: 1,
+	}
+
+	if err := Run(context.Background(), testConfig(), root, fp); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	paths, _ := store.ListMessages(root, "telegram-general")
+	if len(paths) != 1 {
+		t.Errorf("expected 1 message (allowed chat), got %d", len(paths))
+	}
+}
+
+func TestAllowedIDsRejectsUnpermittedChat(t *testing.T) {
+	root := t.TempDir()
+	store.AddAllowedID(root, 999)
+
+	msg := testMessage("alice", "general", "hello")
+	fp := &fakeProvider{
+		messages:    []message.Message{msg},
+		chatIDs:     []int64{123}, // not in allowlist
+		finalOffset: 1,
+	}
+
+	if err := Run(context.Background(), testConfig(), root, fp); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	paths, _ := store.ListMessages(root, "telegram-general")
+	if len(paths) != 0 {
+		t.Errorf("expected 0 messages (rejected chat), got %d", len(paths))
+	}
+}
+
+func TestAllowedIDsRejectsReactionFromUnpermittedChat(t *testing.T) {
+	root := t.TempDir()
+	store.AddAllowedID(root, 999)
+
+	// Write an original message and chat_id for the channel
+	original := message.Message{
+		From:     "alice",
+		Provider: "telegram",
+		Channel:  "general",
+		Date:     time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC),
+		ID:       "telegram-42",
+		Body:     "original text",
+	}
+	store.WriteMessage(root, original, "markdown")
+	store.WriteChatID(root, "telegram-general", 123) // not in allowlist
+
+	fp := &fakeProvider{
+		reactions: []fakeReaction{
+			{
+				channel: "telegram-general",
+				msgID:   42,
+				from:    "bob",
+				emoji:   "\U0001f44d",
+				date:    time.Date(2026, 3, 1, 12, 10, 0, 0, time.UTC),
+			},
+		},
+		finalOffset: 1,
+	}
+
+	if err := Run(context.Background(), testConfig(), root, fp); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	// Reaction should NOT be appended
+	paths, _ := store.ListMessages(root, "telegram-general")
+	if len(paths) != 1 {
+		t.Fatalf("expected 1 message file, got %d", len(paths))
+	}
+	data, _ := os.ReadFile(paths[0])
+	if strings.Contains(string(data), "---reaction---") {
+		t.Error("reaction should have been rejected for unpermitted chat")
+	}
+}

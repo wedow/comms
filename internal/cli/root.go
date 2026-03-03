@@ -32,6 +32,7 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newAckCmd())
 	cmd.AddCommand(newSendCmd(telegram.NewBot))
 	cmd.AddCommand(newReactCmd(telegram.NewBot))
+	cmd.AddCommand(newAllowCmd())
 	return cmd
 }
 

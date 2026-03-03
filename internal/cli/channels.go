@@ -31,11 +31,18 @@ func newChannelsCmd() *cobra.Command {
 					provider = name[:i]
 				}
 
-				if err := PrintJSON(cmd.OutOrStdout(), struct {
+				out := struct {
 					Name     string `json:"name"`
 					Provider string `json:"provider"`
 					Path     string `json:"path"`
-				}{name, provider, filepath.Join(root, name)}); err != nil {
+					ChatID   *int64 `json:"chat_id,omitempty"`
+				}{Name: name, Provider: provider, Path: filepath.Join(root, name)}
+
+				if id, err := store.ReadChatID(root, name); err == nil {
+					out.ChatID = &id
+				}
+
+				if err := PrintJSON(cmd.OutOrStdout(), out); err != nil {
 					return err
 				}
 			}
