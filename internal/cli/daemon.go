@@ -78,7 +78,7 @@ func newDaemonCmd() *cobra.Command {
 
 	startCmd := &cobra.Command{
 		Use:           "start",
-		Short:         "Start the daemon via systemd",
+		Short:         "Start the daemon service",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -88,8 +88,16 @@ func newDaemonCmd() *cobra.Command {
 				return err
 			}
 			svc := serviceName(name, workDir)
-			if err := runSystemctl(cmd.Context(), "--user", "start", svc+".service"); err != nil {
-				return err
+			ctx := cmd.Context()
+			switch platform {
+			case "darwin":
+				if err := runLaunchctl(ctx, "start", plistLabel(svc)); err != nil {
+					return err
+				}
+			default:
+				if err := runSystemctl(ctx, "--user", "start", svc+".service"); err != nil {
+					return err
+				}
 			}
 			return PrintJSON(cmd.OutOrStdout(), map[string]string{"status": "started", "service": svc})
 		},
@@ -98,7 +106,7 @@ func newDaemonCmd() *cobra.Command {
 
 	stopCmd := &cobra.Command{
 		Use:           "stop",
-		Short:         "Stop the daemon via systemd",
+		Short:         "Stop the daemon service",
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -108,8 +116,16 @@ func newDaemonCmd() *cobra.Command {
 				return err
 			}
 			svc := serviceName(name, workDir)
-			if err := runSystemctl(cmd.Context(), "--user", "stop", svc+".service"); err != nil {
-				return err
+			ctx := cmd.Context()
+			switch platform {
+			case "darwin":
+				if err := runLaunchctl(ctx, "stop", plistLabel(svc)); err != nil {
+					return err
+				}
+			default:
+				if err := runSystemctl(ctx, "--user", "stop", svc+".service"); err != nil {
+					return err
+				}
 			}
 			return PrintJSON(cmd.OutOrStdout(), map[string]string{"status": "stopped", "service": svc})
 		},
@@ -124,25 +140,41 @@ func newDaemonCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, _ := cmd.Flags().GetString("name")
 			follow, _ := cmd.Flags().GetBool("follow")
+			lines, _ := cmd.Flags().GetInt("lines")
 			workDir, err := os.Getwd()
 			if err != nil {
 				return err
 			}
 			svc := serviceName(name, workDir)
-			jArgs := []string{"--user-unit", svc + ".service", "--no-pager"}
-			if follow {
-				jArgs = append(jArgs, "--follow")
-			} else {
-				jArgs = append(jArgs, "-n", "100")
+			var c *exec.Cmd
+			switch platform {
+			case "darwin":
+				logPath, err := logFilePath(svc)
+				if err != nil {
+					return err
+				}
+				if follow {
+					c = exec.CommandContext(cmd.Context(), "tail", "-n", fmt.Sprintf("%d", lines), "-f", logPath)
+				} else {
+					c = exec.CommandContext(cmd.Context(), "tail", "-n", fmt.Sprintf("%d", lines), logPath)
+				}
+			default:
+				jArgs := []string{"--user-unit", svc + ".service", "--no-pager"}
+				if follow {
+					jArgs = append(jArgs, "--follow")
+				} else {
+					jArgs = append(jArgs, "-n", fmt.Sprintf("%d", lines))
+				}
+				c = exec.CommandContext(cmd.Context(), "journalctl", jArgs...)
 			}
-			j := exec.CommandContext(cmd.Context(), "journalctl", jArgs...)
-			j.Stdout = cmd.OutOrStdout()
-			j.Stderr = cmd.ErrOrStderr()
-			return j.Run()
+			c.Stdout = cmd.OutOrStdout()
+			c.Stderr = cmd.ErrOrStderr()
+			return c.Run()
 		},
 	}
 	logsCmd.Flags().String("name", "", "service name suffix (default: directory basename)")
 	logsCmd.Flags().BoolP("follow", "f", false, "follow log output")
+	logsCmd.Flags().IntP("lines", "n", 100, "number of lines to show")
 
 	cmd.AddCommand(statusCmd, runCmd, startCmd, stopCmd, logsCmd, newInstallCmd(), newUninstallCmd())
 	return cmd
