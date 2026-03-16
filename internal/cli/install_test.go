@@ -479,9 +479,12 @@ func TestInstallDarwinWritesPlist(t *testing.T) {
 		t.Errorf("plist missing daemon arg\n%s", data)
 	}
 
-	// No launchctl calls (not loaded, no --start)
-	if len(*calls) != 0 {
-		t.Fatalf("launchctl calls = %d, want 0: %v", len(*calls), *calls)
+	// Should see: load (always loads to register the agent)
+	if len(*calls) != 1 {
+		t.Fatalf("launchctl calls = %d, want 1: %v", len(*calls), *calls)
+	}
+	if !containsArg((*calls)[0], "load") {
+		t.Errorf("call 0 = %v, want load", (*calls)[0])
 	}
 
 	// JSON output

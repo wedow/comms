@@ -362,13 +362,9 @@ func installDarwin(ctx context.Context, cmd *cobra.Command, svc, binary, workDir
 
 	if wasLoaded {
 		_ = runLaunchctl(ctx, "unload", plistPath)
-		if err := runLaunchctl(ctx, "load", plistPath); err != nil {
-			return err
-		}
-	} else if startNow {
-		if err := runLaunchctl(ctx, "load", plistPath); err != nil {
-			return err
-		}
+	}
+	if err := runLaunchctl(ctx, "load", plistPath); err != nil {
+		return err
 	}
 
 	return PrintJSON(cmd.OutOrStdout(), map[string]string{
