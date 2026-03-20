@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -88,4 +89,66 @@ func TestLoadMissingFile(t *testing.T) {
 	if err == nil {
 		t.Fatal("Load() expected error for missing file, got nil")
 	}
+}
+
+func TestProviderConfig(t *testing.T) {
+	c := Config{
+		Providers: map[string]map[string]any{
+			"telegram": {"token": "abc123", "timeout": 30.0},
+		},
+	}
+
+	t.Run("valid provider", func(t *testing.T) {
+		data, err := c.ProviderConfig("telegram")
+		if err != nil {
+			t.Fatalf("ProviderConfig() error: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("json.Unmarshal() error: %v", err)
+		}
+		if m["token"] != "abc123" {
+			t.Errorf("token = %v, want %q", m["token"], "abc123")
+		}
+		if m["timeout"] != 30.0 {
+			t.Errorf("timeout = %v, want %v", m["timeout"], 30.0)
+		}
+	})
+
+	t.Run("unknown provider", func(t *testing.T) {
+		_, err := c.ProviderConfig("slack")
+		if err == nil {
+			t.Fatal("ProviderConfig() expected error for unknown provider, got nil")
+		}
+	})
+}
+
+func TestProviderNames(t *testing.T) {
+	t.Run("sorted names", func(t *testing.T) {
+		c := Config{
+			Providers: map[string]map[string]any{
+				"telegram": {},
+				"slack":    {},
+				"discord":  {},
+			},
+		}
+		names := c.ProviderNames()
+		want := []string{"discord", "slack", "telegram"}
+		if len(names) != len(want) {
+			t.Fatalf("ProviderNames() len = %d, want %d", len(names), len(want))
+		}
+		for i, name := range names {
+			if name != want[i] {
+				t.Errorf("ProviderNames()[%d] = %q, want %q", i, name, want[i])
+			}
+		}
+	})
+
+	t.Run("empty map", func(t *testing.T) {
+		c := Config{}
+		names := c.ProviderNames()
+		if len(names) != 0 {
+			t.Errorf("ProviderNames() len = %d, want 0", len(names))
+		}
+	})
 }

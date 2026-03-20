@@ -1,7 +1,10 @@
 package config
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
+	"sort"
 
 	"github.com/BurntSushi/toml"
 )
@@ -31,6 +34,23 @@ func Default() Config {
 		General:  GeneralConfig{Format: "markdown"},
 		Callback: CallbackConfig{Delay: "5s"},
 	}
+}
+
+func (c *Config) ProviderConfig(provider string) ([]byte, error) {
+	p, ok := c.Providers[provider]
+	if !ok {
+		return nil, fmt.Errorf("provider %q not found", provider)
+	}
+	return json.Marshal(p)
+}
+
+func (c *Config) ProviderNames() []string {
+	names := make([]string, 0, len(c.Providers))
+	for k := range c.Providers {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func Load(path string) (Config, error) {
