@@ -1,6 +1,6 @@
 ---
 id: com-sz5e
-status: open
+status: closed
 deps: [com-xgku, com-kf56]
 links: []
 created: 2026-03-20T01:05:24Z

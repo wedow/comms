@@ -1,6 +1,6 @@
 ---
 id: com-ogzs
-status: open
+status: closed
 deps: [com-kf56, com-gjjv]
 links: []
 created: 2026-03-20T01:05:33Z
