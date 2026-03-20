@@ -1,6 +1,6 @@
 ---
 id: com-plln
-status: open
+status: closed
 deps: [com-20s3]
 links: []
 created: 2026-03-20T01:04:46Z
