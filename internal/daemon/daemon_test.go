@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -247,5 +249,107 @@ func TestRunProcessesErrorEvent(t *testing.T) {
 	err := Run(ctx, cfg, root, []string{"testprov"})
 	if err != nil && err != context.Canceled {
 		t.Fatalf("Run returned unexpected error: %v", err)
+	}
+}
+
+func TestRunDownloadsMedia(t *testing.T) {
+	root := t.TempDir()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("fake image data"))
+	}))
+	defer ts.Close()
+
+	origLookPath := lookPathFunc
+	origSpawn := spawnFunc
+	t.Cleanup(func() {
+		lookPathFunc = origLookPath
+		spawnFunc = origSpawn
+	})
+
+	lookPathFunc = func(name string) (string, error) {
+		return "/fake/" + name, nil
+	}
+
+	eventsCh := make(chan any, 8)
+	doneCh := make(chan error, 1)
+
+	spawnFunc = func(ctx context.Context, provider, binaryPath, root string, providerConfig []byte, offset int64) (*Subprocess, error) {
+		return &Subprocess{
+			events:   eventsCh,
+			done:     doneCh,
+			provider: provider,
+		}, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		eventsCh <- protocol.MessageEvent{
+			Type:        protocol.TypeMessage,
+			Offset:      50,
+			ID:          1,
+			ChatID:      123,
+			Channel:     "general",
+			From:        "bob",
+			Date:        time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			Body:        "check this photo",
+			DownloadURL: ts.URL + "/photo.jpg",
+			MediaType:   "photo",
+			MediaExt:    ".jpg",
+		}
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+		close(eventsCh)
+		doneCh <- nil
+	}()
+
+	cfg := config.Config{
+		General:   config.GeneralConfig{Format: "markdown"},
+		Providers: map[string]map[string]any{"testprov": {"token": "fake"}},
+	}
+
+	_ = Run(ctx, cfg, root, []string{"testprov"})
+
+	// Verify media file was downloaded into a timestamp subdirectory.
+	channelDir := filepath.Join(root, "testprov-general")
+	entries, err := os.ReadDir(channelDir)
+	if err != nil {
+		t.Fatalf("reading channel dir: %v", err)
+	}
+
+	foundMedia := false
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		subEntries, err := os.ReadDir(filepath.Join(channelDir, e.Name()))
+		if err != nil {
+			continue
+		}
+		for _, se := range subEntries {
+			if strings.HasSuffix(se.Name(), ".jpg") {
+				foundMedia = true
+				data, err := os.ReadFile(filepath.Join(channelDir, e.Name(), se.Name()))
+				if err != nil {
+					t.Fatalf("reading media file: %v", err)
+				}
+				if string(data) != "fake image data" {
+					t.Errorf("media content = %q, want %q", string(data), "fake image data")
+				}
+			}
+		}
+	}
+	if !foundMedia {
+		t.Error("expected media file (.jpg) in channel directory")
+	}
+
+	// Verify offset was persisted.
+	offset, err := store.ReadOffset(root, "testprov")
+	if err != nil {
+		t.Fatalf("reading offset: %v", err)
+	}
+	if offset != 50 {
+		t.Errorf("offset = %d, want 50", offset)
 	}
 }
