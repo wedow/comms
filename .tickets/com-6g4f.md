@@ -1,6 +1,6 @@
 ---
 id: com-6g4f
-status: open
+status: closed
 deps: [com-68x1, com-ab0w, com-oqd8, com-jrwi]
 links: []
 created: 2026-03-20T01:09:28Z
