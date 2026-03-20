@@ -1,6 +1,6 @@
 ---
 id: com-c7vx
-status: open
+status: closed
 deps: [com-mnvn, com-gvr2]
 links: []
 created: 2026-03-20T01:04:56Z

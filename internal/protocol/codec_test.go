@@ -3,6 +3,7 @@ package protocol
 import (
 	"bufio"
 	"bytes"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -156,6 +157,86 @@ func TestEncodeDecodeRoundTrip(t *testing.T) {
 
 	if got != orig {
 		t.Errorf("round trip mismatch:\n got  %+v\n want %+v", got, orig)
+	}
+}
+
+func TestEncodeDecodeTypedRoundTrip(t *testing.T) {
+	ts := time.Date(2026, 3, 19, 12, 0, 0, 0, time.UTC)
+	fwd := time.Date(2026, 3, 18, 10, 0, 0, 0, time.UTC)
+	edit := time.Date(2026, 3, 19, 13, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name string
+		orig any
+	}{
+		{"ready", ReadyEvent{Type: TypeReady, Provider: "telegram", Version: "1.0"}},
+		{"message", MessageEvent{
+			Type: TypeMessage, Offset: 42, ID: 101, ChatID: -100123,
+			Channel: "general", From: "alice", Date: ts, Body: "hello world",
+			ReplyTo: 99, ReplyToBody: "original", Quote: "quoted text",
+			ThreadID: 5, MediaType: "photo", MediaFileID: "abc123",
+			DownloadURL: "https://example.com/photo.jpg", MediaExt: ".jpg",
+			Caption: "nice photo", ForwardFrom: "bob", ForwardDate: &fwd,
+			EditDate: &edit, MediaGroupID: "grp-1",
+			Entities: []Entity{{Type: "bold", Offset: 0, Length: 5}},
+		}},
+		{"edit", MessageEvent{
+			Type: TypeEdit, Offset: 43, ID: 102, ChatID: -100123,
+			Channel: "general", From: "alice", Date: ts, Body: "edited text",
+			EditDate: &edit,
+		}},
+		{"reaction", ReactionEvent{
+			Type: TypeReaction, Offset: 44, Channel: "general",
+			MessageID: 101, From: "bob", Emoji: "\U0001f44d", Date: ts,
+		}},
+		{"response", ResponseEvent{
+			Type: TypeResponse, ID: "req-1", OK: true,
+			Message: &MsgSummary{
+				ID: 201, ChatID: -100123, Channel: "general",
+				From: "bot", Date: ts, Body: "sent",
+			},
+		}},
+		{"response_error", ResponseEvent{
+			Type: TypeResponse, ID: "req-2", OK: false, Error: "not found",
+		}},
+		{"error", ErrorEvent{Type: TypeError, Code: 500, Message: "internal error"}},
+		{"shutdown_complete", ShutdownCompleteEvent{Type: TypeShutdownComplete}},
+		{"ping", PingEvent{Type: TypePing, TS: ts}},
+		{"pong", PongEvent{Type: TypePong, TS: ts}},
+		{"start", StartCommand{Type: TypeStart, Offset: 100}},
+		{"send", SendCommand{
+			Type: TypeSend, ID: "req-3", ChatID: -100123, Text: "hello",
+			ParseMode: "Markdown", ReplyToID: 50, ThreadID: 7,
+		}},
+		{"send_media", SendMediaCommand{
+			Type: TypeSendMedia, ID: "req-4", ChatID: -100123,
+			MediaType: "photo", Path: "/tmp/photo.jpg", Filename: "photo.jpg",
+			Caption: "a caption", ParseMode: "HTML", ReplyToID: 50, ThreadID: 7,
+		}},
+		{"react", ReactCommand{
+			Type: TypeReact, ID: "req-5", ChatID: -100123, MessageID: 101, Emoji: "\U0001f44d",
+		}},
+		{"typing", TypingCommand{Type: TypeTyping, ChatID: -100123}},
+		{"shutdown", ShutdownCommand{Type: TypeShutdown, Reason: "graceful"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			if err := Encode(&buf, tt.orig); err != nil {
+				t.Fatalf("Encode: %v", err)
+			}
+
+			r := bufio.NewReader(&buf)
+			got, err := DecodeTyped(r)
+			if err != nil {
+				t.Fatalf("DecodeTyped: %v", err)
+			}
+
+			if !reflect.DeepEqual(got, tt.orig) {
+				t.Errorf("round trip mismatch:\n got  %+v\n want %+v", got, tt.orig)
+			}
+		})
 	}
 }
 
