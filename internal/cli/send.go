@@ -1,21 +1,21 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
-	"github.com/go-telegram/bot/models"
 	"github.com/spf13/cobra"
 	"github.com/wedow/comms/internal/config"
 	"github.com/wedow/comms/internal/message"
-	"github.com/wedow/comms/providers/telegram"
 	"github.com/wedow/comms/internal/store"
 )
 
-func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
+func newSendCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "send [message...]",
 		Short:         "Send a message to a channel",
@@ -61,54 +61,65 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 				return err
 			}
 
-			api, err := newBot(cfg.Telegram.Token)
+			provider := extractProvider(channel)
+
+			binary, err := resolveProviderBinary(provider)
 			if err != nil {
-				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("create bot: %v", err)})
+				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("provider binary: %v", err)})
 				return err
 			}
 
-			replyToID := 0
+			providerCfg, err := cfg.ProviderConfig(provider)
+			if err != nil {
+				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("provider config: %v", err)})
+				return err
+			}
+
+			// Build args for provider binary
+			providerArgs := []string{"send", "--chat-id", strconv.FormatInt(chatID, 10)}
+
+			if format, _ := cmd.Flags().GetString("format"); format != "" {
+				providerArgs = append(providerArgs, "--format", format)
+			}
 			if replyTo, _ := cmd.Flags().GetString("reply-to"); replyTo != "" {
-				replyToID, err = telegram.ParseMessageID(replyTo)
-				if err != nil {
-					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
-					return err
-				}
+				providerArgs = append(providerArgs, "--reply-to", replyTo)
+			}
+			if filePath != "" {
+				providerArgs = append(providerArgs, "--file", filePath)
+			}
+			if mediaType, _ := cmd.Flags().GetString("media-type"); mediaType != "" {
+				providerArgs = append(providerArgs, "--media-type", mediaType)
+			}
+			if threadID, _ := cmd.Flags().GetInt("thread"); threadID != 0 {
+				providerArgs = append(providerArgs, "--thread", strconv.Itoa(threadID))
 			}
 
-			threadID, _ := cmd.Flags().GetInt("thread")
+			env := []string{"COMMS_PROVIDER_CONFIG=" + string(providerCfg)}
 
-			parseMode, err := parseFormatFlag(cmd)
+			out, err := delegateWithOutput(binary, providerArgs, env, strings.NewReader(body))
 			if err != nil {
-				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
+				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("provider send: %v", err)})
 				return err
 			}
 
-			var sent message.Message
-			if filePath != "" {
-				f, err := os.Open(filePath)
-				if err != nil {
-					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("open file: %v", err)})
-					return err
-				}
-				defer f.Close()
+			// Parse provider response to get message_id
+			var resp struct {
+				OK        bool `json:"ok"`
+				MessageID int  `json:"message_id"`
+			}
+			if err := json.Unmarshal(out, &resp); err != nil {
+				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("parse provider response: %v", err)})
+				return err
+			}
 
-				mediaType, _ := cmd.Flags().GetString("media-type")
-				if mediaType == "" {
-					mediaType = telegram.DetectMediaType(filepath.Base(filePath))
-				}
-
-				sent, err = telegram.SendMedia(cmd.Context(), api, chatID, f, filepath.Base(filePath), mediaType, body, replyToID, threadID, parseMode)
-				if err != nil {
-					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
-					return err
-				}
-			} else {
-				sent, err = telegram.Send(cmd.Context(), api, chatID, body, replyToID, threadID, parseMode)
-				if err != nil {
-					_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
-					return err
-				}
+			// Construct message for local store
+			channelSuffix := channel[len(provider)+1:]
+			sent := message.Message{
+				Provider: provider,
+				Channel:  channelSuffix,
+				Date:     time.Now().UTC(),
+				ID:       fmt.Sprintf("%s-%d", provider, resp.MessageID),
+				Body:     body,
 			}
 
 			// Write sent message to local store
@@ -142,18 +153,4 @@ func newSendCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 	cmd.Flags().Int("thread", 0, "forum topic thread ID to send to")
 	_ = cmd.MarkFlagRequired("channel")
 	return cmd
-}
-
-func parseFormatFlag(cmd *cobra.Command) (models.ParseMode, error) {
-	format, _ := cmd.Flags().GetString("format")
-	switch format {
-	case "", "plain":
-		return "", nil
-	case "markdown":
-		return models.ParseModeMarkdown, nil
-	case "html":
-		return models.ParseModeHTML, nil
-	default:
-		return "", fmt.Errorf("unsupported format %q (use markdown, html, or plain)", format)
-	}
 }

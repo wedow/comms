@@ -3,16 +3,14 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 
-	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
 	"github.com/spf13/cobra"
 	"github.com/wedow/comms/internal/config"
-	"github.com/wedow/comms/providers/telegram"
 	"github.com/wedow/comms/internal/store"
 )
 
-func newReactCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
+func newReactCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:           "react",
 		Short:         "Set a reaction on a message",
@@ -21,7 +19,7 @@ func newReactCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dir, _ := cmd.Flags().GetString("dir")
 			channel, _ := cmd.Flags().GetString("channel")
-			message, _ := cmd.Flags().GetString("message")
+			msg, _ := cmd.Flags().GetString("message")
 			emoji, _ := cmd.Flags().GetString("emoji")
 
 			root, err := filepath.Abs(dir)
@@ -41,30 +39,31 @@ func newReactCmd(newBot func(string) (telegram.BotAPI, error)) *cobra.Command {
 				return err
 			}
 
-			msgID, err := telegram.ParseMessageID(message)
+			provider := extractProvider(channel)
+
+			binary, err := resolveProviderBinary(provider)
 			if err != nil {
-				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": err.Error()})
+				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("provider binary: %v", err)})
 				return err
 			}
 
-			api, err := newBot(cfg.Telegram.Token)
+			providerCfg, err := cfg.ProviderConfig(provider)
 			if err != nil {
-				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("create bot: %v", err)})
+				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("provider config: %v", err)})
 				return err
 			}
 
-			_, err = api.SetMessageReaction(cmd.Context(), &bot.SetMessageReactionParams{
-				ChatID:    chatID,
-				MessageID: msgID,
-				Reaction: []models.ReactionType{
-					{
-						Type:              models.ReactionTypeTypeEmoji,
-						ReactionTypeEmoji: &models.ReactionTypeEmoji{Type: models.ReactionTypeTypeEmoji, Emoji: emoji},
-					},
-				},
-			})
-			if err != nil {
-				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("set reaction: %v", err)})
+			providerArgs := []string{
+				"react",
+				"--chat-id", strconv.FormatInt(chatID, 10),
+				"--message", msg,
+				"--emoji", emoji,
+			}
+
+			env := []string{"COMMS_PROVIDER_CONFIG=" + string(providerCfg)}
+
+			if _, err := delegateWithOutput(binary, providerArgs, env, nil); err != nil {
+				_ = PrintJSON(cmd.ErrOrStderr(), map[string]string{"error": fmt.Sprintf("provider react: %v", err)})
 				return err
 			}
 

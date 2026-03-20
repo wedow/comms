@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/wedow/comms/providers/telegram"
 )
 
 const version = "v0.1.0"
@@ -30,8 +29,8 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(newDaemonCmd())
 	cmd.AddCommand(newUnreadCmd())
 	cmd.AddCommand(newAckCmd())
-	cmd.AddCommand(newSendCmd(telegram.NewBot))
-	cmd.AddCommand(newReactCmd(telegram.NewBot))
+	cmd.AddCommand(newSendCmd())
+	cmd.AddCommand(newReactCmd())
 	cmd.AddCommand(newAllowCmd())
 	cmd.AddCommand(newPrimeCmd())
 	return cmd

@@ -2,168 +2,101 @@ package cli
 
 import (
 	"bytes"
-	"context"
-	"errors"
+	"fmt"
+	"io"
 	"strings"
 	"testing"
 
-	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
-	"github.com/wedow/comms/providers/telegram"
 	"github.com/wedow/comms/internal/store"
 )
 
-type mockReactBot struct {
-	sendFn  func(ctx context.Context, params *bot.SendMessageParams) (*models.Message, error)
-	reactFn func(ctx context.Context, params *bot.SetMessageReactionParams) (bool, error)
-}
+func stubReactDelegate(t *testing.T, err error) *delegateCapture {
+	t.Helper()
+	cap := &delegateCapture{}
 
-func (m *mockReactBot) SendMessage(ctx context.Context, params *bot.SendMessageParams) (*models.Message, error) {
-	if m.sendFn != nil {
-		return m.sendFn(ctx, params)
+	origLookPath := lookPath
+	origRunOutput := runDelegateOutput
+	t.Cleanup(func() {
+		lookPath = origLookPath
+		runDelegateOutput = origRunOutput
+	})
+
+	lookPath = func(name string) (string, error) {
+		return "/usr/bin/" + name, nil
 	}
-	return nil, errors.New("SendMessage not expected")
-}
 
-func (m *mockReactBot) SendPhoto(_ context.Context, _ *bot.SendPhotoParams) (*models.Message, error) {
-	return nil, nil
-}
+	runDelegateOutput = func(binary string, args []string, env []string, stdin io.Reader) ([]byte, error) {
+		cap.binary = binary
+		cap.args = args
+		cap.env = env
+		if err != nil {
+			return nil, err
+		}
+		return []byte(`{"ok":true}` + "\n"), nil
+	}
 
-func (m *mockReactBot) SendDocument(_ context.Context, _ *bot.SendDocumentParams) (*models.Message, error) {
-	return nil, nil
-}
-
-func (m *mockReactBot) SendAudio(_ context.Context, _ *bot.SendAudioParams) (*models.Message, error) {
-	return nil, nil
-}
-
-func (m *mockReactBot) SendVideo(_ context.Context, _ *bot.SendVideoParams) (*models.Message, error) {
-	return nil, nil
-}
-
-func (m *mockReactBot) SendVoice(_ context.Context, _ *bot.SendVoiceParams) (*models.Message, error) {
-	return nil, nil
-}
-
-func (m *mockReactBot) SendAnimation(_ context.Context, _ *bot.SendAnimationParams) (*models.Message, error) {
-	return nil, nil
-}
-
-func (m *mockReactBot) SetMessageReaction(ctx context.Context, params *bot.SetMessageReactionParams) (bool, error) {
-	return m.reactFn(ctx, params)
-}
-
-func (m *mockReactBot) SendChatAction(_ context.Context, _ *bot.SendChatActionParams) (bool, error) {
-	return true, nil
-}
-
-func (m *mockReactBot) GetFile(_ context.Context, _ *bot.GetFileParams) (*models.File, error) {
-	return nil, nil
-}
-
-func (m *mockReactBot) FileDownloadLink(_ *models.File) string { return "" }
-
-func mockReactBotFactory(b telegram.BotAPI) func(string) (telegram.BotAPI, error) {
-	return func(_ string) (telegram.BotAPI, error) { return b, nil }
+	return cap
 }
 
 func TestReactCmd(t *testing.T) {
-	t.Run("successful reaction", func(t *testing.T) {
+	t.Run("successful reaction via delegation", func(t *testing.T) {
 		root := t.TempDir()
 		writeTestConfig(t, root)
-		store.WriteChatID(root, "general", 123)
+		store.WriteChatID(root, "telegram-general", 123)
 
-		var gotParams *bot.SetMessageReactionParams
-		mock := &mockReactBot{reactFn: func(_ context.Context, p *bot.SetMessageReactionParams) (bool, error) {
-			gotParams = p
-			return true, nil
-		}}
+		cap := stubReactDelegate(t, nil)
 
-		cmd := newReactCmd(mockReactBotFactory(mock))
+		cmd := newReactCmd()
 		out := &bytes.Buffer{}
 		errBuf := &bytes.Buffer{}
 		cmd.SetOut(out)
 		cmd.SetErr(errBuf)
-		cmd.SetArgs([]string{"--channel", "general", "--message", "telegram-99", "--emoji", "\U0001F44D", "--dir", root})
+		cmd.SetArgs([]string{"--channel", "telegram-general", "--message", "telegram-99", "--emoji", "\U0001F44D", "--dir", root})
 
 		err := cmd.Execute()
 		if err != nil {
 			t.Fatalf("unexpected error: %v (stderr: %s)", err, errBuf.String())
 		}
 
-		if gotParams == nil {
-			t.Fatal("SetMessageReaction was not called")
+		if cap.binary != "/usr/bin/comms-telegram" {
+			t.Errorf("binary = %q, want /usr/bin/comms-telegram", cap.binary)
 		}
-		if gotParams.ChatID != int64(123) {
-			t.Errorf("ChatID = %v, want 123", gotParams.ChatID)
+		if !containsFlagValue(cap.args, "--chat-id", "123") {
+			t.Errorf("args = %v, missing --chat-id 123", cap.args)
 		}
-		if gotParams.MessageID != 99 {
-			t.Errorf("MessageID = %d, want 99", gotParams.MessageID)
+		if !containsFlagValue(cap.args, "--message", "telegram-99") {
+			t.Errorf("args = %v, missing --message telegram-99", cap.args)
 		}
-		if len(gotParams.Reaction) != 1 {
-			t.Fatalf("Reaction count = %d, want 1", len(gotParams.Reaction))
-		}
-		if gotParams.Reaction[0].ReactionTypeEmoji == nil {
-			t.Fatal("ReactionTypeEmoji is nil")
-		}
-		if gotParams.Reaction[0].ReactionTypeEmoji.Emoji != "\U0001F44D" {
-			t.Errorf("Emoji = %q, want thumbs up", gotParams.Reaction[0].ReactionTypeEmoji.Emoji)
+		if !containsFlagValue(cap.args, "--emoji", "\U0001F44D") {
+			t.Errorf("args = %v, missing --emoji thumbs up", cap.args)
 		}
 
 		got := out.String()
 		if !strings.Contains(got, `"ok":true`) {
 			t.Errorf("stdout = %q, want ok:true", got)
 		}
-		if !strings.Contains(got, `"channel":"general"`) {
-			t.Errorf("stdout = %q, want channel:general", got)
+		if !strings.Contains(got, `"channel":"telegram-general"`) {
+			t.Errorf("stdout = %q, want channel:telegram-general", got)
 		}
 	})
 
-	t.Run("api error", func(t *testing.T) {
+	t.Run("provider binary error", func(t *testing.T) {
 		root := t.TempDir()
 		writeTestConfig(t, root)
-		store.WriteChatID(root, "general", 123)
+		store.WriteChatID(root, "telegram-general", 123)
 
-		mock := &mockReactBot{reactFn: func(_ context.Context, _ *bot.SetMessageReactionParams) (bool, error) {
-			return false, errors.New("reaction failed")
-		}}
+		_ = stubReactDelegate(t, fmt.Errorf("exit status 1"))
 
-		cmd := newReactCmd(mockReactBotFactory(mock))
+		cmd := newReactCmd()
 		out := &bytes.Buffer{}
 		errBuf := &bytes.Buffer{}
 		cmd.SetOut(out)
 		cmd.SetErr(errBuf)
-		cmd.SetArgs([]string{"--channel", "general", "--message", "telegram-99", "--emoji", "\U0001F44D", "--dir", root})
+		cmd.SetArgs([]string{"--channel", "telegram-general", "--message", "telegram-99", "--emoji", "\U0001F44D", "--dir", root})
 
 		err := cmd.Execute()
 		if err == nil {
-			t.Fatal("expected error for API failure")
-		}
-		if !strings.Contains(errBuf.String(), `"error"`) {
-			t.Errorf("stderr = %q, want JSON error", errBuf.String())
-		}
-	})
-
-	t.Run("invalid message ID", func(t *testing.T) {
-		root := t.TempDir()
-		writeTestConfig(t, root)
-		store.WriteChatID(root, "general", 123)
-
-		mock := &mockReactBot{reactFn: func(_ context.Context, _ *bot.SetMessageReactionParams) (bool, error) {
-			t.Fatal("SetMessageReaction should not be called with invalid message ID")
-			return false, nil
-		}}
-
-		cmd := newReactCmd(mockReactBotFactory(mock))
-		out := &bytes.Buffer{}
-		errBuf := &bytes.Buffer{}
-		cmd.SetOut(out)
-		cmd.SetErr(errBuf)
-		cmd.SetArgs([]string{"--channel", "general", "--message", "bad-id", "--emoji", "\U0001F44D", "--dir", root})
-
-		err := cmd.Execute()
-		if err == nil {
-			t.Fatal("expected error for invalid message ID")
+			t.Fatal("expected error for provider binary failure")
 		}
 		if !strings.Contains(errBuf.String(), `"error"`) {
 			t.Errorf("stderr = %q, want JSON error", errBuf.String())
@@ -173,14 +106,11 @@ func TestReactCmd(t *testing.T) {
 	t.Run("missing channel", func(t *testing.T) {
 		root := t.TempDir()
 		writeTestConfig(t, root)
-		store.WriteChatID(root, "general", 123)
+		store.WriteChatID(root, "telegram-general", 123)
 
-		mock := &mockReactBot{reactFn: func(_ context.Context, _ *bot.SetMessageReactionParams) (bool, error) {
-			t.Fatal("SetMessageReaction should not be called with missing channel")
-			return false, nil
-		}}
+		_ = stubReactDelegate(t, nil)
 
-		cmd := newReactCmd(mockReactBotFactory(mock))
+		cmd := newReactCmd()
 		out := &bytes.Buffer{}
 		errBuf := &bytes.Buffer{}
 		cmd.SetOut(out)
@@ -190,6 +120,87 @@ func TestReactCmd(t *testing.T) {
 		err := cmd.Execute()
 		if err == nil {
 			t.Fatal("expected error for missing channel flag")
+		}
+	})
+
+	t.Run("missing chat_id", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+
+		_ = stubReactDelegate(t, nil)
+
+		cmd := newReactCmd()
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetArgs([]string{"--channel", "telegram-nonexistent", "--message", "telegram-99", "--emoji", "\U0001F44D", "--dir", root})
+
+		err := cmd.Execute()
+		if err == nil {
+			t.Fatal("expected error for missing chat_id")
+		}
+		if !strings.Contains(errBuf.String(), `"error"`) {
+			t.Errorf("stderr = %q, want JSON error", errBuf.String())
+		}
+	})
+
+	t.Run("provider binary not found", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "telegram-general", 123)
+
+		origLookPath := lookPath
+		t.Cleanup(func() { lookPath = origLookPath })
+		lookPath = func(name string) (string, error) {
+			return "", fmt.Errorf("not found: %s", name)
+		}
+
+		cmd := newReactCmd()
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetArgs([]string{"--channel", "telegram-general", "--message", "telegram-99", "--emoji", "\U0001F44D", "--dir", root})
+
+		err := cmd.Execute()
+		if err == nil {
+			t.Fatal("expected error for missing provider binary")
+		}
+		if !strings.Contains(errBuf.String(), `"error"`) {
+			t.Errorf("stderr = %q, want JSON error", errBuf.String())
+		}
+	})
+
+	t.Run("provider config passed as env var", func(t *testing.T) {
+		root := t.TempDir()
+		writeTestConfig(t, root)
+		store.WriteChatID(root, "telegram-general", 123)
+
+		cap := stubReactDelegate(t, nil)
+
+		cmd := newReactCmd()
+		out := &bytes.Buffer{}
+		errBuf := &bytes.Buffer{}
+		cmd.SetOut(out)
+		cmd.SetErr(errBuf)
+		cmd.SetArgs([]string{"--channel", "telegram-general", "--message", "telegram-99", "--emoji", "\U0001F44D", "--dir", root})
+
+		err := cmd.Execute()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		found := false
+		for _, e := range cap.env {
+			if strings.HasPrefix(e, "COMMS_PROVIDER_CONFIG=") {
+				found = true
+				if !strings.Contains(e, "test-token") {
+					t.Errorf("env var = %q, want token in config", e)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("env = %v, missing COMMS_PROVIDER_CONFIG", cap.env)
 		}
 	})
 }

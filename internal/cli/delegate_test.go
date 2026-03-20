@@ -2,6 +2,8 @@ package cli
 
 import (
 	"errors"
+	"io"
+	"strings"
 	"testing"
 )
 
@@ -91,6 +93,53 @@ func TestDelegate(t *testing.T) {
 		}
 
 		err := delegate("/usr/bin/comms-telegram", []string{"send"})
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestDelegateWithOutput(t *testing.T) {
+	t.Run("captures stdout", func(t *testing.T) {
+		orig := runDelegateOutput
+		t.Cleanup(func() { runDelegateOutput = orig })
+
+		var gotBinary string
+		var gotArgs []string
+		var gotEnv []string
+		runDelegateOutput = func(binary string, args []string, env []string, stdin io.Reader) ([]byte, error) {
+			gotBinary = binary
+			gotArgs = args
+			gotEnv = env
+			return []byte(`{"ok":true,"message_id":42}`), nil
+		}
+
+		out, err := delegateWithOutput("/usr/bin/comms-telegram", []string{"send", "--chat-id", "123"}, []string{"COMMS_PROVIDER_CONFIG={}"}, strings.NewReader("hello"))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotBinary != "/usr/bin/comms-telegram" {
+			t.Errorf("binary = %q, want %q", gotBinary, "/usr/bin/comms-telegram")
+		}
+		if len(gotArgs) != 3 || gotArgs[0] != "send" {
+			t.Errorf("args = %v, want [send --chat-id 123]", gotArgs)
+		}
+		if len(gotEnv) != 1 || gotEnv[0] != "COMMS_PROVIDER_CONFIG={}" {
+			t.Errorf("env = %v, want [COMMS_PROVIDER_CONFIG={}]", gotEnv)
+		}
+		if string(out) != `{"ok":true,"message_id":42}` {
+			t.Errorf("output = %q, want JSON", string(out))
+		}
+	})
+
+	t.Run("returns error", func(t *testing.T) {
+		orig := runDelegateOutput
+		t.Cleanup(func() { runDelegateOutput = orig })
+		runDelegateOutput = func(binary string, args []string, env []string, stdin io.Reader) ([]byte, error) {
+			return nil, errors.New("exit status 1")
+		}
+
+		_, err := delegateWithOutput("/usr/bin/comms-telegram", []string{"send"}, nil, nil)
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}

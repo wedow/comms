@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -8,8 +9,9 @@ import (
 
 // Swappable for testing.
 var (
-	lookPath    = exec.LookPath
-	runDelegate = defaultRunDelegate
+	lookPath           = exec.LookPath
+	runDelegate        = defaultRunDelegate
+	runDelegateOutput  = defaultRunDelegateOutput
 )
 
 func defaultRunDelegate(binary string, args []string) error {
@@ -18,6 +20,14 @@ func defaultRunDelegate(binary string, args []string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func defaultRunDelegateOutput(binary string, args []string, env []string, stdin io.Reader) ([]byte, error) {
+	cmd := exec.Command(binary, args...)
+	cmd.Env = append(os.Environ(), env...)
+	cmd.Stdin = stdin
+	cmd.Stderr = os.Stderr
+	return cmd.Output()
 }
 
 // extractProvider returns the provider name from a channel string.
@@ -37,4 +47,9 @@ func resolveProviderBinary(provider string) (string, error) {
 // delegate runs a provider binary with the given args, inheriting stdio.
 func delegate(binary string, args []string) error {
 	return runDelegate(binary, args)
+}
+
+// delegateWithOutput runs a provider binary, captures stdout, and returns it.
+func delegateWithOutput(binary string, args []string, env []string, stdin io.Reader) ([]byte, error) {
+	return runDelegateOutput(binary, args, env, stdin)
 }
