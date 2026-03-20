@@ -7,9 +7,10 @@ import (
 )
 
 type Config struct {
-	General  GeneralConfig
-	Telegram TelegramConfig
-	Callback CallbackConfig
+	General   GeneralConfig
+	Telegram  TelegramConfig
+	Callback  CallbackConfig
+	Providers map[string]map[string]any `toml:"providers"`
 }
 
 type GeneralConfig struct {
