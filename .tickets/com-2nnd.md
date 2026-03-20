@@ -1,6 +1,6 @@
 ---
 id: com-2nnd
-status: open
+status: closed
 deps: [com-ho3r]
 links: []
 created: 2026-03-20T01:05:20Z

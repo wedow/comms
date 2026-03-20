@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -267,5 +268,154 @@ func TestSpawnBadReady(t *testing.T) {
 	_, err := Spawn(ctx, "test", "/bin/fake", "/tmp/r", nil, 0)
 	if err == nil {
 		t.Fatal("expected error for bad ready event, got nil")
+	}
+}
+
+func TestSendCommand(t *testing.T) {
+	// Set up a Subprocess with mocked pipes.
+	stdinPR, stdinPW := io.Pipe()
+
+	sub := &Subprocess{
+		stdin:  stdinPW,
+		events: make(chan any, 8),
+		done:   make(chan error, 1),
+	}
+
+	// Read from stdin pipe in another goroutine.
+	type result struct {
+		cmd protocol.SendCommand
+		err error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		r := bufio.NewReader(stdinPR)
+		evt, err := protocol.DecodeTyped(r)
+		if err != nil {
+			ch <- result{err: err}
+			return
+		}
+		cmd, ok := evt.(protocol.SendCommand)
+		if !ok {
+			ch <- result{err: nil}
+			return
+		}
+		ch <- result{cmd: cmd}
+	}()
+
+	err := sub.SendCommand(context.Background(), protocol.SendCommand{
+		Type:   protocol.TypeSend,
+		ID:     "abc",
+		ChatID: 123,
+		Text:   "hello",
+	})
+	if err != nil {
+		t.Fatalf("SendCommand returned error: %v", err)
+	}
+
+	select {
+	case res := <-ch:
+		if res.err != nil {
+			t.Fatalf("decode error: %v", res.err)
+		}
+		if res.cmd.ID != "abc" || res.cmd.Text != "hello" || res.cmd.ChatID != 123 {
+			t.Errorf("unexpected command: %+v", res.cmd)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for command on stdin")
+	}
+}
+
+func TestSendCommandCanceled(t *testing.T) {
+	stdinPR, stdinPW := io.Pipe()
+	defer stdinPR.Close()
+
+	sub := &Subprocess{
+		stdin:  stdinPW,
+		events: make(chan any, 8),
+		done:   make(chan error, 1),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	err := sub.SendCommand(ctx, protocol.SendCommand{
+		Type: protocol.TypeSend,
+		Text: "should not be written",
+	})
+	if err == nil {
+		t.Fatal("expected error for canceled context, got nil")
+	}
+	if err != context.Canceled {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+}
+
+func TestShutdownGraceful(t *testing.T) {
+	stdinPR, stdinPW := io.Pipe()
+
+	sub := &Subprocess{
+		stdin:  stdinPW,
+		events: make(chan any, 8),
+		done:   make(chan error, 1),
+	}
+
+	// Read shutdown command from stdin and send shutdown_complete on events channel.
+	go func() {
+		r := bufio.NewReader(stdinPR)
+		evt, err := protocol.DecodeTyped(r)
+		if err != nil {
+			return
+		}
+		cmd, ok := evt.(protocol.ShutdownCommand)
+		if !ok || cmd.Type != protocol.TypeShutdown {
+			return
+		}
+		sub.events <- protocol.ShutdownCompleteEvent{Type: protocol.TypeShutdownComplete}
+	}()
+
+	err := sub.Shutdown("test reason")
+	if err != nil {
+		t.Fatalf("Shutdown returned error: %v", err)
+	}
+}
+
+func TestShutdownTimeout(t *testing.T) {
+	stdinPR, stdinPW := io.Pipe()
+
+	// We need a real process to kill. Use a simple cmd.
+	cmd := exec.Command("sleep", "60")
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("failed to start sleep process: %v", err)
+	}
+
+	sub := &Subprocess{
+		cmd:    cmd,
+		stdin:  stdinPW,
+		events: make(chan any, 8),
+		done:   make(chan error, 1),
+	}
+
+	// Post process exit to done channel when it dies.
+	go func() {
+		sub.done <- cmd.Wait()
+	}()
+
+	origTimeout := shutdownTimeout
+	shutdownTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { shutdownTimeout = origTimeout })
+
+	// Read stdin to unblock the write, but don't send shutdown_complete.
+	go func() {
+		r := bufio.NewReader(stdinPR)
+		protocol.DecodeTyped(r)
+		// intentionally don't send shutdown_complete
+	}()
+
+	err := sub.Shutdown("timeout test")
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Errorf("expected timeout error message, got: %v", err)
 	}
 }
