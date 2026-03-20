@@ -214,7 +214,7 @@ func scaffoldConfig(cmd *cobra.Command, root string) error {
 		return err
 	}
 
-	if cfg.Telegram.Token == "" {
+	if cfg.Providers == nil || cfg.Providers["telegram"] == nil || cfg.Providers["telegram"]["token"] == "" {
 		fmt.Fprint(cmd.ErrOrStderr(), "Telegram bot token: ")
 		scanner := bufio.NewScanner(cmd.InOrStdin())
 		if !scanner.Scan() {
@@ -224,7 +224,13 @@ func scaffoldConfig(cmd *cobra.Command, root string) error {
 		if token == "" {
 			return fmt.Errorf("no token provided")
 		}
-		cfg.Telegram.Token = token
+		if cfg.Providers == nil {
+			cfg.Providers = make(map[string]map[string]any)
+		}
+		if cfg.Providers["telegram"] == nil {
+			cfg.Providers["telegram"] = make(map[string]any)
+		}
+		cfg.Providers["telegram"]["token"] = token
 		if err := writeConfig(cfgPath, cfg); err != nil {
 			return err
 		}

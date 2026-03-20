@@ -11,17 +11,12 @@ import (
 
 type Config struct {
 	General   GeneralConfig
-	Telegram  TelegramConfig
 	Callback  CallbackConfig
 	Providers map[string]map[string]any `toml:"providers"`
 }
 
 type GeneralConfig struct {
 	Format string `toml:"format"`
-}
-
-type TelegramConfig struct {
-	Token string `toml:"token"`
 }
 
 type CallbackConfig struct {
@@ -37,23 +32,6 @@ func Default() Config {
 			"telegram": {"token": ""},
 		},
 	}
-}
-
-// TelegramToken returns the Telegram token from the Providers map.
-// Returns "" if not configured or not a string.
-func (c *Config) TelegramToken() string {
-	if c.Providers == nil {
-		return ""
-	}
-	tg, ok := c.Providers["telegram"]
-	if !ok {
-		return ""
-	}
-	token, ok := tg["token"].(string)
-	if !ok {
-		return ""
-	}
-	return token
 }
 
 func (c *Config) ProviderConfig(provider string) ([]byte, error) {
@@ -78,18 +56,8 @@ func Load(path string) (Config, error) {
 	if _, err := toml.DecodeFile(path, &c); err != nil {
 		return Config{}, err
 	}
-	// Migration: copy [telegram] to [providers.telegram] if not already set
-	if c.Telegram.Token != "" {
-		if c.Providers == nil {
-			c.Providers = make(map[string]map[string]any)
-		}
-		if c.Providers["telegram"] == nil {
-			c.Providers["telegram"] = map[string]any{"token": c.Telegram.Token}
-		}
-	}
 	// Env var override
 	if env := os.Getenv("COMMS_TELEGRAM_TOKEN"); env != "" {
-		c.Telegram.Token = env
 		if c.Providers == nil {
 			c.Providers = make(map[string]map[string]any)
 		}

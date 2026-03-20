@@ -165,8 +165,8 @@ func TestInstallScaffoldsDir(t *testing.T) {
 	if _, err := toml.DecodeFile(filepath.Join(root, "config.toml"), &cfg); err != nil {
 		t.Fatalf("config: %v", err)
 	}
-	if cfg.Telegram.Token != "test-token" {
-		t.Errorf("token = %q, want %q", cfg.Telegram.Token, "test-token")
+	if cfg.Providers == nil || cfg.Providers["telegram"] == nil || cfg.Providers["telegram"]["token"] != "test-token" {
+		t.Errorf("Providers[telegram][token] = %v, want %q", cfg.Providers["telegram"]["token"], "test-token")
 	}
 
 	// unit file written
@@ -213,8 +213,8 @@ func TestInstallSkipsPromptWhenTokenExists(t *testing.T) {
 	os.MkdirAll(root, 0o755)
 	f, _ := os.Create(filepath.Join(root, "config.toml"))
 	toml.NewEncoder(f).Encode(config.Config{
-		Telegram: config.TelegramConfig{Token: "existing"},
-		General:  config.GeneralConfig{Format: "markdown"},
+		General:   config.GeneralConfig{Format: "markdown"},
+		Providers: map[string]map[string]any{"telegram": {"token": "existing"}},
 	})
 	f.Close()
 
@@ -234,8 +234,8 @@ func TestInstallSkipsPromptWhenTokenExists(t *testing.T) {
 	// Token unchanged
 	var cfg config.Config
 	toml.DecodeFile(filepath.Join(root, "config.toml"), &cfg)
-	if cfg.Telegram.Token != "existing" {
-		t.Errorf("token = %q, want existing", cfg.Telegram.Token)
+	if cfg.Providers == nil || cfg.Providers["telegram"] == nil || cfg.Providers["telegram"]["token"] != "existing" {
+		t.Errorf("Providers[telegram][token] = %v, want existing", cfg.Providers["telegram"]["token"])
 	}
 }
 
@@ -251,8 +251,8 @@ func TestInstallRestartsWhenActive(t *testing.T) {
 	os.MkdirAll(root, 0o755)
 	f, _ := os.Create(filepath.Join(root, "config.toml"))
 	toml.NewEncoder(f).Encode(config.Config{
-		Telegram: config.TelegramConfig{Token: "tok"},
-		General:  config.GeneralConfig{Format: "markdown"},
+		General:   config.GeneralConfig{Format: "markdown"},
+		Providers: map[string]map[string]any{"telegram": {"token": "tok"}},
 	})
 	f.Close()
 
@@ -284,8 +284,8 @@ func TestInstallStartFlag(t *testing.T) {
 	os.MkdirAll(root, 0o755)
 	f, _ := os.Create(filepath.Join(root, "config.toml"))
 	toml.NewEncoder(f).Encode(config.Config{
-		Telegram: config.TelegramConfig{Token: "tok"},
-		General:  config.GeneralConfig{Format: "markdown"},
+		General:   config.GeneralConfig{Format: "markdown"},
+		Providers: map[string]map[string]any{"telegram": {"token": "tok"}},
 	})
 	f.Close()
 
@@ -317,8 +317,8 @@ func TestInstallNoStartByDefault(t *testing.T) {
 	os.MkdirAll(root, 0o755)
 	f, _ := os.Create(filepath.Join(root, "config.toml"))
 	toml.NewEncoder(f).Encode(config.Config{
-		Telegram: config.TelegramConfig{Token: "tok"},
-		General:  config.GeneralConfig{Format: "markdown"},
+		General:   config.GeneralConfig{Format: "markdown"},
+		Providers: map[string]map[string]any{"telegram": {"token": "tok"}},
 	})
 	f.Close()
 
@@ -442,8 +442,8 @@ func prepareConfigDir(t *testing.T, tmpDir string) string {
 	os.MkdirAll(root, 0o755)
 	f, _ := os.Create(filepath.Join(root, "config.toml"))
 	toml.NewEncoder(f).Encode(config.Config{
-		Telegram: config.TelegramConfig{Token: "tok"},
-		General:  config.GeneralConfig{Format: "markdown"},
+		General:   config.GeneralConfig{Format: "markdown"},
+		Providers: map[string]map[string]any{"telegram": {"token": "tok"}},
 	})
 	f.Close()
 	return root
