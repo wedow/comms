@@ -1,3 +1,14 @@
+---
+title: Plugin Architecture
+status: reviewing
+review_passes: 1
+last_review: 2026-03-19
+blocking_issues_history:
+  - pass: 1
+    blocking_count: 22
+    resolved: 22
+---
+
 # Plugin Architecture
 
 Refactor comms into a two-binary model: a provider-agnostic base binary (`comms`) that delegates provider-specific work to standalone provider binaries (`comms-telegram`, etc.) via exec (one-shot) and JSONL over stdio (daemon mode). After implementation, the base binary has zero provider SDK dependencies.
@@ -20,6 +31,8 @@ Refactor comms into a two-binary model: a provider-agnostic base binary (`comms`
               v              v
          telegram API    telegram API
 ```
+
+The v1 Telegram integration is proven working. This plan enables multi-provider support by decoupling the base binary from any single provider SDK.
 
 **Base binary**: parse flags, delegate send/react to provider, manage daemon lifecycle, run daemon core loop.
 
@@ -68,7 +81,7 @@ Phase 05 (polish) -- depends on all
 
 Execution order: 00 -> (01, 02) -> 03 -> 04 -> 05
 
-Phase 01 and Phase 02 can run in parallel. Phase 02 technically depends on Phase 00 but Phase 01 is independent. Phase 03 depends on 01 (protocol types) and 00 (import paths). Phase 04 depends on 02 (provider binary skeleton) and 03 (daemon subprocess manager).
+Phase 01 tasks (protocol types, config changes) have zero code dependency on Phase 00 — Phase 01 can begin before Phase 00 completes. Only final `go build ./...` verification of Phase 01 requires the provider move to be done. Phase 02 also depends on Phase 00 for import paths. Phase 03 depends on 01 (protocol types) and 00 (import paths). Phase 04 depends on 02 (provider binary skeleton) and 03 (daemon subprocess manager).
 
 ## File Changes Summary
 

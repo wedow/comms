@@ -1,3 +1,8 @@
+---
+title: "Phase 05: Polish"
+status: reviewing
+---
+
 # Phase 05: Polish
 
 ## Overview
@@ -10,7 +15,7 @@ Final cleanup: update documentation, verify CI configuration, remove deprecated 
 
 Remove the `TelegramConfig` struct and `Telegram` field from `Config`. Remove the `TelegramToken()` backward-compat helper. Remove the migration logic in `Load()` that copies `[telegram]` to `[providers]`.
 
-All callers should now use `Providers["telegram"]` or `ProviderConfig("telegram")`.
+Verify all callers access provider config through the Providers map or ProviderConfig() helper introduced in Phase 01, and that no direct references to the old Telegram struct fields remain.
 
 **Files:**
 - `internal/config/config.go` -- remove `TelegramConfig`, `Telegram` field, `TelegramToken()`, migration logic
@@ -20,32 +25,21 @@ Update `Default()` to only produce `[providers.telegram]` format.
 
 ### Task 05-2: Update CI and build configuration
 
-Add a `Makefile` (or update existing build script) with targets for both binaries. Update `.github/workflows/` CI if it exists, or document the build commands in CLAUDE.md.
+Update `.github/workflows/` CI to build both binaries. Add a second `go build` step after the existing one:
 
-```makefile
-.PHONY: build
-build:
-	go build -o comms ./cmd/comms
-	go build -o comms-telegram ./cmd/comms-telegram
-
-.PHONY: test
-test:
-	go test ./...
-	go vet ./...
+```bash
+go build -o /dev/null ./cmd/comms && go build -o /dev/null ./cmd/comms-telegram
 ```
 
-If `.goreleaser.yml` exists, add `comms-telegram` as a second build target with the same build settings as `comms`.
+Check if a goreleaser config exists. If not, create `.goreleaser.yaml` with both build targets (`comms` and `comms-telegram`). Also update the brew formula's `install` section to install both binaries.
 
 **Files:**
-- `Makefile` (new, or update existing)
-- `.github/workflows/*.yml` (if exists -- add `make build` step)
-- `.goreleaser.yml` (if exists -- add second binary)
+- `.github/workflows/*.yml` (if exists -- add second `go build` step)
+- `.goreleaser.yaml` (create if absent -- add both build targets)
 
 **Verification:**
 ```bash
-make build
-make test
-ls -la comms comms-telegram
+go build -o /dev/null ./cmd/comms && go build -o /dev/null ./cmd/comms-telegram
 ```
 
 ### Task 05-3: Final end-to-end verification
@@ -82,7 +76,7 @@ go test ./internal/protocol/ -v
 go test ./internal/config/ -v
 ```
 
-Fix any issues found. Document any known limitations or open decisions.
+If any test or vet failures occur, fix them before committing.
 
 ## Verification
 

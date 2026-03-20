@@ -1,3 +1,8 @@
+---
+title: "Phase 03: Daemon Subprocess"
+status: reviewing
+---
+
 # Phase 03: Daemon Subprocess
 
 ## Overview
@@ -44,6 +49,8 @@ Define `Subprocess` struct (cmd, pipes, state, event channel). Implement `Spawn(
 
 Use swappable `startProcess` var for test injection.
 
+Provider binary resolution: call `exec.LookPath("comms-" + provider)` inline — a one-liner that doesn't warrant abstraction.
+
 **File:** `internal/daemon/provider.go` (new)
 
 ### Task 03-5: Subprocess shutdown
@@ -72,43 +79,46 @@ Tests using `os.Pipe()` pairs and helper goroutines simulating provider behavior
 
 ### Task 03-9: Protocol I/O layer
 
-Implement JSONL read/write on pipes using `internal/protocol` types. `DecodeEvent(r *json.Decoder) (ProtocolMessage, error)` and `EncodeCommand(w *json.Encoder, cmd Command) error`. This is the glue between the protocol package types and the pipe-based communication.
+The daemon imports `internal/protocol` directly and calls `protocol.DecodeTyped(*bufio.Reader)` (added in Phase 01) to read events from the subprocess stdout pipe. Commands are encoded using `json.NewEncoder(stdin).Encode(cmd)` where `cmd` is a concrete `protocol` type. No wrapper file or intermediate types (`ProtocolMessage`, `Command`) are needed — callers use Go type switches on the concrete types from `internal/protocol`.
 
-**File:** `internal/daemon/protocol.go` (new)
+No new file is created for this task; the read/write calls live in `internal/daemon/provider.go` alongside `Spawn`.
 
 ### Task 03-10: Protocol I/O tests
 
-Round-trip encode/decode tests, blank line handling, oversized line rejection, unknown type error.
+Round-trip encode/decode tests, blank line handling, oversized line rejection, unknown type error. Tests exercise the read/write calls in `provider.go` directly.
 
-**File:** `internal/daemon/protocol_test.go` (new)
+**File:** `internal/daemon/provider_test.go` (extend existing)
 
-### Task 03-11: Remove Provider interface from daemon
+### Task 03-11: Remove interfaces and replace TypingIndicator atomically
 
-Delete `Provider` and `TypingIndicator` interfaces from `daemon/daemon.go`. Replace `daemon.Run()` signature with `Run(ctx, cfg, root, providers []string) error` (stub for now).
+These changes must land together — deleting an interface before updating its sole user breaks the build.
 
-**File:** `internal/daemon/daemon.go`
+Atomic steps:
+1. Define `TypingFunc func(ctx context.Context, provider string, chatID int64) error` in `callback.go`
+2. Replace the `TypingIndicator` interface field and constructor parameter in `CallbackRunner` with `TypingFunc`
+3. Delete the `TypingIndicator` interface from `callback.go` (line 15)
+4. Delete the `Provider` interface from `daemon.go`
+5. Replace `daemon.Run()` signature with `Run(ctx, cfg, root, providers []string) error` (stub for now)
+
+The daemon will implement `sendTypingCommand` (a closure matching `TypingFunc`) that writes `TypingCommand` to the correct provider's stdin, added in Task 03-12.
+
+**Files:** `internal/daemon/callback.go`, `internal/daemon/daemon.go`
 
 ### Task 03-12: Daemon core loop with subprocess management
 
 Implement the main `daemon.Run()` loop:
 1. Write PID file
 2. Load allowed IDs
-3. Create CallbackRunner
-4. For each provider: resolve binary, read offset, spawn subprocess, start reader goroutine
+3. Create `CallbackRunner` with a `sendTypingCommand` closure
+4. For each provider: call `exec.LookPath("comms-" + provider)`, read offset, spawn subprocess via `RespawnManager`, start reader goroutine
 5. On each event: convert to message, call handler, persist offset
-6. Wait for context cancellation (SIGTERM/SIGINT)
-7. Send shutdown to all providers, wait for completion (5s timeout, then SIGKILL)
-8. Remove PID file
+6. Wait for context cancellation
 
 Goroutine model: one reader per provider, main loop selects over channels.
 
+Signal handling and PID cleanup are added in Task 03-17, which depends on this task.
+
 **File:** `internal/daemon/daemon.go`
-
-### Task 03-13: Typing indicator via protocol
-
-Replace `TypingIndicator` interface with `TypingFunc func(ctx context.Context, provider string, chatID int64) error`. Update `CallbackRunner` to use function type instead of interface. The daemon implements `sendTypingCommand` that writes `TypingCommand` to the correct provider's stdin.
-
-**File:** `internal/daemon/callback.go`
 
 ### Task 03-14: Refactor CLI daemon command
 
@@ -118,7 +128,11 @@ Remove `telegramProvider` struct, all `go-telegram/bot` imports, and direct `tel
 
 ### Task 03-15: Crash recovery in daemon core
 
-Implement crash recovery loop within daemon's per-provider goroutine: log exit, persist offset, wait with backoff, respawn. Handle binary-not-found (log once, skip). Handle 5 consecutive failures (skip permanently). Handle context cancellation during backoff.
+The per-provider goroutine calls `RespawnManager.Run(ctx)` (Task 03-7). All backoff and failure-counting logic lives in `RespawnManager` — the goroutine does not reimplement it.
+
+The goroutine is responsible only for:
+- Logging when `RespawnManager.Run` returns (provider permanently failed or context cancelled)
+- Persisting the final offset to disk before exiting
 
 **File:** `internal/daemon/daemon.go`
 
@@ -130,13 +144,20 @@ Move `downloadMedia` into the handler path. `handleMessageEvent` calls `download
 
 ### Task 03-17: Signal handling and graceful shutdown
 
-Add signal handling in `daemon.Run()`: create a `signal.NotifyContext` for SIGTERM/SIGINT. On cancellation, call `Shutdown()` on all live subprocesses with 5s timeout, then `Process.Kill()` on stragglers. After all subprocesses exit, persist final offsets via `store.WriteOffset()` and remove PID file.
+Depends on Task 03-12 (core loop exists). Adds the shutdown sequence that 03-12 leaves as a stub.
 
-Add test: send SIGTERM to daemon process (or cancel context), verify all mock subprocesses receive shutdown command, verify offsets persisted, verify PID file removed.
+Changes in `daemon.Run()`:
+1. Wrap the context with `signal.NotifyContext(ctx, syscall.SIGTERM, os.Interrupt)` at entry
+2. After the main select falls through (context cancelled): call `Shutdown()` on all live subprocesses, 5s timeout, then `cmd.Process.Kill()` on stragglers
+3. Wait for all per-provider goroutines to exit (use a `sync.WaitGroup`)
+4. Persist final offsets via `store.WriteOffset()`
+5. Remove PID file
+
+Add test: cancel context (or send SIGTERM), verify all mock subprocesses receive shutdown command, verify offsets persisted, verify PID file removed.
 
 **Files:**
-- `internal/daemon/daemon.go` -- add signal context in `Run()`, add shutdown sequencing after context cancellation
-- `internal/daemon/daemon_test.go` -- add `TestRunGracefulShutdown` and `TestRunForceKill`
+- `internal/daemon/daemon.go` — signal context, shutdown sequencing, PID cleanup
+- `internal/daemon/daemon_test.go` — `TestRunGracefulShutdown`, `TestRunForceKill`
 
 ### Task 03-18: Rewrite daemon tests
 
@@ -186,7 +207,12 @@ grep -r "go-telegram" internal/daemon/
 Internal task dependencies:
 - Tasks 03-1 to 03-3 can run in parallel (pure refactor / additive)
 - Tasks 03-4 to 03-10 are the subprocess infrastructure (sequential)
-- Tasks 03-11 to 03-17 depend on 03-4 through 03-10
+- Task 03-11 is atomic (interfaces deleted and TypingFunc wired in one commit); depends on 03-4 through 03-10
+- Task 03-12 depends on 03-11
+- Task 03-15 depends on 03-7 (RespawnManager) and 03-12 (daemon loop)
+- Task 03-17 depends on 03-12 (adds signal handling and PID cleanup to the loop 03-12 creates)
+- Task 03-14 depends on 03-11 and 03-12
+- Task 03-16 depends on 03-3 (handler functions)
 - Task 03-18 depends on all preceding tasks (rewrite tests after behavior changes)
 
 ## Post-Phase State

@@ -1,3 +1,8 @@
+---
+title: "Phase 02: One-Shot Delegation"
+status: reviewing
+---
+
 # Phase 02: One-Shot Delegation
 
 ## Overview
@@ -32,19 +37,27 @@ This is a separate `main` package that builds as `comms-telegram`. Imports `prov
 
 ### Task 02-4: Create provider-specific CLI commands
 
-Create `providers/telegram/cli.go` with `NewSendCmd()` and `NewReactCmd()` Cobra factories. These call telegram SDK directly (not via delegation). Reads config using `config.TelegramToken()` or `COMMS_CONFIG_PATH` env var.
+Create `providers/telegram/cli.go` with `NewSendCmd()` and `NewReactCmd()` Cobra factories. These call telegram SDK directly (not via delegation). Reads config using the `COMMS_PROVIDER_CONFIG` env var (set by the base binary via `config.ProviderConfig(provider)` from Phase 01).
 
 **File:** `providers/telegram/cli.go`
 
-Key difference from current `cli/send.go`: the provider CLI reads config independently and calls `telegram.NewBot(token)` directly (no `newBot` parameter injection).
+The provider binary is a pure network client: it sends/receives via the Telegram API and returns results as JSON on stdout. It never touches the store. The `--format` flag is interpreted here (not in the base binary — `parseFormatFlag` is deleted from `send.go`). Config is read from `COMMS_PROVIDER_CONFIG`; there is no reference to `config.TelegramToken()` here.
+
+Key difference from current `cli/send.go`: the provider CLI reads config from the env var and calls `telegram.NewBot(token)` directly (no `newBot` parameter injection).
 
 ### Task 02-5: Refactor `internal/cli/send.go` to delegate
 
-Replace the current send implementation with delegation logic: parse flags, extract provider from channel, resolve `comms-<provider>` binary, pass through all flags as args.
+Replace the current send implementation with delegation logic: read `chat_id` from the store, extract provider from channel, resolve `comms-<provider>` binary, forward explicit named flags as argv.
 
 **File:** `internal/cli/send.go`
 
-Remove imports: `go-telegram/bot/models`, `providers/telegram`, `message`, `store`.
+The base binary retains store operations (`ReadChatID`, `WriteMessage`, `WriteCursor`) — it parses the provider binary's JSON stdout and handles all store persistence. Delete `parseFormatFlag` from `send.go` entirely; the `--format` flag is forwarded as a raw string to the provider binary, which interprets it.
+
+`delegate()` constructs an explicit named argv — NOT raw `os.Args` passthrough. The flags forwarded are: `--channel`, `--format`, `--reply-to`, `--file`, `--media-type`, `--thread`, `--chat-id` (value read from store via `ReadChatID`), and body args.
+
+Remove imports: `go-telegram/bot/models`, `providers/telegram`. Keep: `store`, `message`, `config`.
+
+**Implementation order note:** Task 02-4 must be implemented before Task 02-3, because `cmd/comms-telegram/main.go` imports `providers/telegram` which is created in 02-4.
 
 ### Task 02-6: Refactor `internal/cli/react.go` to delegate
 
@@ -105,5 +118,6 @@ grep -c "go-telegram/bot" internal/cli/daemon.go
 
 - Two binaries build: `comms` and `comms-telegram`
 - `comms send` and `comms react` delegate to `comms-telegram` via exec
-- Base CLI `send.go`, `react.go`, `root.go` have zero telegram imports
+- Base CLI `send.go`, `react.go`, `root.go` have zero telegram SDK imports; `send.go` retains `store`, `message`, `config` imports for persistence
+- Provider binary (`comms-telegram`) is a pure network client: no store access, reads config from `COMMS_PROVIDER_CONFIG`, returns JSON on stdout
 - `daemon.go` still has telegram imports (Phase 03 scope)

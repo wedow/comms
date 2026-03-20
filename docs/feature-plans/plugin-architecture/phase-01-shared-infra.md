@@ -1,3 +1,8 @@
+---
+title: "Phase 01: Shared Infrastructure"
+status: reviewing
+---
+
 # Phase 01: Shared Infrastructure
 
 ## Overview
@@ -43,8 +48,11 @@ Implement JSONL encode/decode in `internal/protocol/codec.go`.
 - `Encode(w io.Writer, msg any) error` -- marshal to JSON, write with trailing newline
 - `Decode(r *bufio.Reader) (map[string]any, error)` -- read one line, unmarshal to raw map
 - `DecodeInto(r *bufio.Reader, target any) error` -- read one line, unmarshal into target struct
+- `DecodeTyped(r *bufio.Reader) (any, error)` -- read one line, inspect `"type"` field, unmarshal into the correct concrete struct (ReadyEvent, MessageEvent, EditEvent, ReactionEvent, ResponseEvent, ErrorEvent, ShutdownCompleteEvent, PingEvent, PongEvent, StartCommand, SendCommand, SendMediaCommand, ReactCommand, TypingCommand, ShutdownCommand); callers use Go type switches. This replaces any separate protocol-decoding layer in the daemon.
 - 1 MiB max line length check
 - Skip blank lines
+
+**Note:** `internal/daemon/protocol.go` from Phase 03 is NOT needed. This codec handles all protocol encoding/decoding. Phase 03 should import and use `internal/protocol` directly rather than adding a daemon-level protocol layer.
 
 ### Task 01-3: Create protocol tests
 

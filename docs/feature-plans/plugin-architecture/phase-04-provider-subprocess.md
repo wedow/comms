@@ -1,3 +1,8 @@
+---
+title: "Phase 04: Provider Subprocess"
+status: reviewing
+---
+
 # Phase 04: Provider Subprocess
 
 ## Overview
@@ -17,6 +22,8 @@ Add a hidden `subprocess` subcommand to `cmd/comms-telegram/main.go`. This comma
 
 ### Task 04-2: Implement subprocess JSONL loop
 
+**Prerequisite**: Add `SendChatAction(ctx context.Context, params *bot.SendChatActionParams) (bool, error)` to the `BotAPI` interface in `telegram.go`, and add a no-op stub for it to `mockBot` in the existing tests. The `typing` command calls this method, so it must be in the interface before `subprocess.go` is written.
+
 Create `RunSubprocess(ctx, stdin, stdout, cfg) error` in `providers/telegram/subprocess.go`:
 
 1. **Handshake**: Create bot client from config, send `{"type":"ready","provider":"telegram","version":"1"}` to stdout
@@ -33,16 +40,16 @@ Create `RunSubprocess(ctx, stdin, stdout, cfg) error` in `providers/telegram/sub
 Internal types:
 - `ProviderConfig` struct: `Token string`
 - `Subprocess` struct: bot client, stdout writer (mutex-protected), cancel func
-- `messageToEvent(msg, offset) protocol.MessageEvent` -- converts `message.Message` to protocol event
+- `messageToEvent(msg, offset) protocol.MessageEvent` -- converts `message.Message` to protocol event; use `internal/provider/telegram/convert.go` as the authoritative field mapping source
 - `messageToSummary(msg) *protocol.MsgSummary` -- converts for responses
 
-Use swappable `subprocessPollFunc = Poll` for test injection (same pattern as `install.go`).
+Use swappable `var subprocessPollFunc = Poll` for test injection (same pattern as `install.go`). The var's type is inferred from `Poll`'s signature; tests replace it with a function literal. No wrapper type needed.
 
 **File:** `providers/telegram/subprocess.go` (new)
 
-### Task 04-3: Subprocess tests
+### Task 04-3: Subprocess unit tests
 
-Comprehensive tests using `io.Pipe` for stdin/stdout:
+Comprehensive tests using `io.Pipe` for stdin/stdout. Construct `Subprocess` struct directly with a `mockBot` (same pattern as existing `send_test.go` — no injection hook needed):
 
 1. Handshake: verify `ready` event on stdout
 2. Start + message event: inject mock update via swappable poll func, verify `message` event
@@ -60,11 +67,13 @@ Test helper: `startSubprocess(t) (*Subprocess, *io.PipeReader, *io.PipeWriter)`.
 
 ### Task 04-4: Integration test for subprocess mode
 
-Build and run `comms-telegram` as a real subprocess:
-1. Build binary to temp path
+Build and run `comms-telegram` as a real subprocess. No mock injection — the integration test exercises the real binary end-to-end:
+
+1. Build binary to temp path (`go build -o $tmpdir/comms-telegram ./cmd/comms-telegram`)
 2. Spawn with `COMMS_PROVIDER_CONFIG={"token":"fake-token"}`
-3. Use `newSubprocessBot` swap to inject mock bot
-4. Exercise full protocol flow (ready, start, message, send, shutdown)
+3. The `ready` event arrives before any API calls, so it is always observable regardless of token validity
+4. Send `start`, then send/react commands — these will return errors from Telegram (expected with a fake token), which is testable by reading `response` events with `ok:false`
+5. Send `shutdown`, verify `shutdown_complete`
 
 **File:** `providers/telegram/subprocess_integration_test.go` (new, or added to subprocess_test.go with build tags)
 
