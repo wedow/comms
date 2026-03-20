@@ -1,12 +1,16 @@
 package daemon
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/wedow/comms/internal/protocol"
 )
 
 // mockSubprocess creates a Subprocess with pre-wired channels for testing.
@@ -295,5 +299,82 @@ func TestRespawnContextCancel(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Run did not return after context cancel")
+	}
+}
+
+func TestRespawnGracefulShutdown(t *testing.T) {
+	orig := spawnFunc
+	t.Cleanup(func() { spawnFunc = orig })
+
+	origTimeout := shutdownTimeout
+	shutdownTimeout = 2 * time.Second
+	t.Cleanup(func() { shutdownTimeout = origTimeout })
+
+	// Use an io.Pipe for stdin so we can read the shutdown command.
+	stdinPR, stdinPW := io.Pipe()
+
+	shutdownReceived := make(chan protocol.ShutdownCommand, 1)
+
+	spawnFunc = func(ctx context.Context, provider, binaryPath, root string, providerConfig []byte, offset int64) (*Subprocess, error) {
+		evCh := make(chan any, 8)
+		done := make(chan error, 1)
+
+		// Simulate subprocess: read stdin for shutdown command, then respond.
+		go func() {
+			r := bufio.NewReader(stdinPR)
+			evt, err := protocol.DecodeTyped(r)
+			if err != nil {
+				return
+			}
+			cmd, ok := evt.(protocol.ShutdownCommand)
+			if ok {
+				shutdownReceived <- cmd
+				// Respond with shutdown_complete so Shutdown() returns.
+				evCh <- protocol.ShutdownCompleteEvent{Type: protocol.TypeShutdownComplete}
+			}
+		}()
+
+		return &Subprocess{
+			stdin:  stdinPW,
+			events: evCh,
+			done:   done,
+		}, nil
+	}
+
+	rm := NewRespawnManager("test", "/bin/fake", "/tmp/root", nil, func() int64 { return 0 })
+	go func() {
+		for range rm.Events() {
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- rm.Run(ctx)
+	}()
+
+	// Let subprocess start.
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	// Verify shutdown command was sent.
+	select {
+	case cmd := <-shutdownReceived:
+		if cmd.Type != protocol.TypeShutdown {
+			t.Errorf("shutdown command type = %q, want %q", cmd.Type, protocol.TypeShutdown)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for shutdown command")
+	}
+
+	// Verify Run() returns nil.
+	select {
+	case err := <-runDone:
+		if err != nil {
+			t.Errorf("expected nil error on graceful shutdown, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return after graceful shutdown")
 	}
 }

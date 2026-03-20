@@ -6,10 +6,13 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/wedow/comms/internal/config"
@@ -28,6 +31,9 @@ func Run(ctx context.Context, cfg config.Config, root string, providers []string
 		return fmt.Errorf("write PID: %w", err)
 	}
 	defer RemovePID(root)
+
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, os.Interrupt)
+	defer stop()
 
 	allowed, err := loadAllowed(root)
 	if err != nil {

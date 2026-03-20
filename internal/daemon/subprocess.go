@@ -42,7 +42,7 @@ var (
 
 // Spawn starts a provider subprocess and performs the ready/start handshake.
 func Spawn(ctx context.Context, provider, binaryPath, root string, providerConfig []byte, offset int64) (*Subprocess, error) {
-	cmd := exec.CommandContext(ctx, binaryPath, "subprocess")
+	cmd := exec.Command(binaryPath, "subprocess")
 	cmd.Env = append(cmd.Environ(),
 		"COMMS_ROOT="+root,
 		"COMMS_PROVIDER_CONFIG="+string(providerConfig),
@@ -141,6 +141,9 @@ func (s *Subprocess) SendCommand(ctx context.Context, cmd any) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.stdin == nil {
+		return fmt.Errorf("stdin pipe not available")
+	}
 	return protocol.Encode(s.stdin, cmd)
 }
 

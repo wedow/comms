@@ -113,11 +113,13 @@ func (rm *RespawnManager) Run(ctx context.Context) error {
 				select {
 				case rm.events <- evt:
 				case <-ctx.Done():
+					sub.Shutdown("context cancelled")
 					return nil
 				}
 			case <-sub.done:
 				break drain
 			case <-ctx.Done():
+				sub.Shutdown("context cancelled")
 				return nil
 			}
 		}
