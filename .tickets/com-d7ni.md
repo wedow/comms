@@ -1,6 +1,6 @@
 ---
 id: com-d7ni
-status: open
+status: closed
 deps: [com-l7o6, com-3w5g]
 links: []
 created: 2026-03-20T01:10:24Z
