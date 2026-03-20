@@ -8,7 +8,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/spf13/cobra"
 	"github.com/wedow/comms/internal/config"
-	"github.com/wedow/comms/internal/provider/telegram"
+	"github.com/wedow/comms/providers/telegram"
 	"github.com/wedow/comms/internal/store"
 )
 

@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/wedow/comms/internal/provider/telegram"
+	"github.com/wedow/comms/providers/telegram"
 )
 
 const version = "v0.1.0"

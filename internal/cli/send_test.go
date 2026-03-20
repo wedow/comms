@@ -13,7 +13,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/wedow/comms/internal/message"
-	"github.com/wedow/comms/internal/provider/telegram"
+	"github.com/wedow/comms/providers/telegram"
 	"github.com/wedow/comms/internal/store"
 )
 

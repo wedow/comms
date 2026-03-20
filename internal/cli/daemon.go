@@ -15,7 +15,7 @@ import (
 	"github.com/wedow/comms/internal/config"
 	"github.com/wedow/comms/internal/daemon"
 	"github.com/wedow/comms/internal/message"
-	"github.com/wedow/comms/internal/provider/telegram"
+	"github.com/wedow/comms/providers/telegram"
 )
 
 func newDaemonCmd() *cobra.Command {
