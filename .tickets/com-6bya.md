@@ -1,6 +1,6 @@
 ---
 id: com-6bya
-status: open
+status: closed
 deps: [com-ho3r, com-lnh0, com-2nnd, com-7pm4]
 links: []
 created: 2026-03-20T01:05:31Z
@@ -38,3 +38,9 @@ go test ./internal/daemon/ -run TestRespawn -v
 ## Acceptance Criteria
 - Full subprocess lifecycle tested. Crash detection tested. Shutdown timeout tested.
 
+
+## Notes
+
+**2026-03-20T02:53:56Z**
+
+All tests already written as part of TDD during com-ho3r, com-2nnd, com-lnh0, com-7pm4 implementation. Tests in subprocess_test.go and respawn_test.go cover: spawn handshake, ready timeout, bad ready, SendCommand, SendCommand canceled, shutdown graceful, shutdown timeout, respawn recovery, backoff, max failures, stability reset, context cancel.
