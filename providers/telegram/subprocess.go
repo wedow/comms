@@ -216,7 +216,7 @@ func (s *subprocess) handleReact(ctx context.Context, cmd protocol.ReactCommand)
 	})
 }
 
-func messageToEvent(msg message.Message, offset int64, isEdit bool) protocol.MessageEvent {
+func messageToEvent(msg message.Message, chatID int64, isEdit bool) protocol.MessageEvent {
 	typ := protocol.TypeMessage
 	if isEdit {
 		typ = protocol.TypeEdit
@@ -228,9 +228,9 @@ func messageToEvent(msg message.Message, offset int64, isEdit bool) protocol.Mes
 
 	return protocol.MessageEvent{
 		Type:         typ,
-		Offset:       offset,
+		Offset:       0,
 		ID:           id,
-		ChatID:       0, // not available from message.Message
+		ChatID:       chatID,
 		Channel:      msg.Channel,
 		From:         msg.From,
 		Date:         msg.Date,

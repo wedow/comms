@@ -307,8 +307,11 @@ func TestMessageToEvent(t *testing.T) {
 	if evt.ID != 42 {
 		t.Errorf("ID = %d, want 42", evt.ID)
 	}
-	if evt.Offset != 100 {
-		t.Errorf("Offset = %d, want 100", evt.Offset)
+	if evt.ChatID != 100 {
+		t.Errorf("ChatID = %d, want 100", evt.ChatID)
+	}
+	if evt.Offset != 0 {
+		t.Errorf("Offset = %d, want 0", evt.Offset)
 	}
 	if evt.Channel != "dev-team" {
 		t.Errorf("Channel = %q, want dev-team", evt.Channel)
@@ -417,6 +420,9 @@ func TestRunSubprocess_Start(t *testing.T) {
 	}
 	if evt["body"] != "hello from poll" {
 		t.Errorf("body = %v, want 'hello from poll'", evt["body"])
+	}
+	if evt["chat_id"] != float64(123) {
+		t.Errorf("chat_id = %v, want 123", evt["chat_id"])
 	}
 
 	writeCmd(stdinW, protocol.ShutdownCommand{Type: "shutdown"})
