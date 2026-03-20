@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -35,6 +36,9 @@ type RespawnManager struct {
 	providerConfig []byte
 	readOffset     func() int64
 	events         chan any
+
+	mu      sync.Mutex
+	current *Subprocess
 }
 
 // NewRespawnManager creates a RespawnManager.
@@ -52,6 +56,17 @@ func NewRespawnManager(provider, binaryPath, root string, providerConfig []byte,
 // Events returns the channel that receives forwarded subprocess events.
 func (rm *RespawnManager) Events() <-chan any {
 	return rm.events
+}
+
+// SendCommand sends a command to the currently active subprocess.
+func (rm *RespawnManager) SendCommand(ctx context.Context, cmd any) error {
+	rm.mu.Lock()
+	sub := rm.current
+	rm.mu.Unlock()
+	if sub == nil {
+		return fmt.Errorf("no active subprocess for %s", rm.provider)
+	}
+	return sub.SendCommand(ctx, cmd)
 }
 
 // Run spawns the subprocess and respawns on crash with exponential backoff.
@@ -81,6 +96,10 @@ func (rm *RespawnManager) Run(ctx context.Context) error {
 			continue
 		}
 
+		rm.mu.Lock()
+		rm.current = sub
+		rm.mu.Unlock()
+
 		spawnTime := time.Now()
 
 		// Forward events and wait for crash.
@@ -102,6 +121,10 @@ func (rm *RespawnManager) Run(ctx context.Context) error {
 				return nil
 			}
 		}
+
+		rm.mu.Lock()
+		rm.current = nil
+		rm.mu.Unlock()
 
 		// Subprocess exited. Check stability.
 		if time.Since(spawnTime) >= respawnStableThreshold {

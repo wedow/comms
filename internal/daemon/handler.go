@@ -78,14 +78,14 @@ func handleEditEvent(root string, cfg config.Config, msg message.Message, chatID
 
 // handleReactionEvent processes a reaction: reads chat ID, checks allowed list,
 // finds the message, appends the reaction, resets the cursor, and fires the callback.
-func handleReactionEvent(root string, cfg config.Config, channel string, msgID int, from string, emoji string, date time.Time, allowed map[int64]bool, cb *CallbackRunner) {
+func handleReactionEvent(root string, cfg config.Config, provider, channel string, msgID int, from string, emoji string, date time.Time, allowed map[int64]bool, cb *CallbackRunner) {
 	chatID, err := store.ReadChatID(root, channel)
 	if err != nil || !allowed[chatID] {
 		log.Printf("rejected reaction for chat %q (not in allowed_ids)", channel)
 		return
 	}
 
-	msgIDStr := fmt.Sprintf("telegram-%d", msgID)
+	msgIDStr := fmt.Sprintf("%s-%d", provider, msgID)
 	path, _, err := store.FindMessageByID(root, channel, msgIDStr, cfg.General.Format)
 	if err != nil {
 		log.Printf("reaction: message not found: %v", err)
@@ -108,7 +108,7 @@ func handleReactionEvent(root string, cfg config.Config, channel string, msgID i
 		cb.Run(CallbackEnv{
 			File:     path,
 			Channel:  channel,
-			Provider: "telegram",
+			Provider: provider,
 			Sender:   from,
 			ChatID:   reactionChatID,
 		})
