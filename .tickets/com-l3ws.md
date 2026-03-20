@@ -1,6 +1,6 @@
 ---
 id: com-l3ws
-status: open
+status: closed
 deps: [com-6bya, com-ohfe]
 links: []
 created: 2026-03-20T01:05:41Z
@@ -34,3 +34,9 @@ go test ./internal/daemon/ -run TestProtocol -v
 ## Acceptance Criteria
 - Protocol I/O round-trips correctly. Edge cases handled.
 
+
+## Notes
+
+**2026-03-20T03:14:24Z**
+
+All scenarios (round-trip, blank lines, oversized line, unknown type) already covered by protocol/codec_test.go and daemon/subprocess_test.go. No new test file needed.

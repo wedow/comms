@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -428,6 +429,63 @@ func TestRunSubprocess_Start(t *testing.T) {
 	writeCmd(stdinW, protocol.ShutdownCommand{Type: "shutdown"})
 	readEvent(t, stdout) // shutdown_complete
 	stdinW.Close()
+}
+
+func TestRunSubprocess_SendError(t *testing.T) {
+	mock := &subprocessMockBot{
+		mockBot: mockBot{
+			sendFn: func(_ context.Context, _ *bot.SendMessageParams) (*models.Message, error) {
+				return nil, fmt.Errorf("bot API failure")
+			},
+		},
+	}
+
+	stdinW, stdout, _ := runSubprocessHelper(t, mock)
+	readEvent(t, stdout) // ready
+
+	writeCmd(stdinW, protocol.SendCommand{
+		Type:   "send",
+		ID:     "req-err",
+		ChatID: 123,
+		Text:   "will fail",
+	})
+
+	evt := readEvent(t, stdout)
+	if evt["type"] != "response" {
+		t.Fatalf("type = %v, want response", evt["type"])
+	}
+	if evt["id"] != "req-err" {
+		t.Errorf("id = %v, want req-err", evt["id"])
+	}
+	if evt["ok"] != false {
+		t.Errorf("ok = %v, want false", evt["ok"])
+	}
+	errMsg, _ := evt["error"].(string)
+	if errMsg == "" {
+		t.Error("expected non-empty error message")
+	}
+
+	writeCmd(stdinW, protocol.ShutdownCommand{Type: "shutdown"})
+	readEvent(t, stdout) // shutdown_complete
+	stdinW.Close()
+}
+
+func TestRunSubprocess_MalformedJSON(t *testing.T) {
+	mock := &subprocessMockBot{}
+	stdinW, stdout, errCh := runSubprocessHelper(t, mock)
+	readEvent(t, stdout) // ready
+
+	// Write malformed JSON (not valid JSON, but a complete line).
+	stdinW.Write([]byte("this is not json\n"))
+	stdinW.Close()
+
+	err := <-errCh
+	if err == nil {
+		t.Fatal("expected error for malformed JSON")
+	}
+	if !strings.Contains(err.Error(), "decode") {
+		t.Errorf("error = %v, want it to contain 'decode'", err)
+	}
 }
 
 func TestRunSubprocess_InvalidConfig(t *testing.T) {

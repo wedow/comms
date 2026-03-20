@@ -1,6 +1,6 @@
 ---
 id: com-oqd8
-status: open
+status: closed
 deps: [com-ab0w]
 links: []
 created: 2026-03-20T01:08:56Z
@@ -44,3 +44,9 @@ go test ./providers/telegram/ -run TestSubprocess -v -count=1
 - All 9 test scenarios pass
 - Full protocol coverage
 
+
+## Notes
+
+**2026-03-20T03:14:23Z**
+
+Added 2 missing test scenarios (send error, malformed JSON). Other 10 scenarios already covered by TDD during com-ab0w.
