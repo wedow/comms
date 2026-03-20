@@ -79,7 +79,10 @@ func TestExecCallbackAsync(t *testing.T) {
 
 func TestExecCallbackSendsTyping(t *testing.T) {
 	var count atomic.Int32
-	typing := &fakeTyping{onSend: func() { count.Add(1) }}
+	typing := TypingFunc(func(_ context.Context, _ string, _ int64) error {
+		count.Add(1)
+		return nil
+	})
 
 	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s", ChatID: 123}
 	ExecCallback(context.Background(), "sleep 0.1", env, typing)
@@ -93,7 +96,10 @@ func TestExecCallbackSendsTyping(t *testing.T) {
 
 func TestExecCallbackNoTypingWithoutChatID(t *testing.T) {
 	var count atomic.Int32
-	typing := &fakeTyping{onSend: func() { count.Add(1) }}
+	typing := TypingFunc(func(_ context.Context, _ string, _ int64) error {
+		count.Add(1)
+		return nil
+	})
 
 	env := CallbackEnv{File: "f", Channel: "c", Provider: "p", Sender: "s", ChatID: 0}
 	ExecCallback(context.Background(), "sleep 0.1", env, typing)
@@ -211,13 +217,14 @@ func TestCallbackRunnerUsesLatestEnv(t *testing.T) {
 func TestStartTypingLoopRepeats(t *testing.T) {
 	var mu sync.Mutex
 	var chatIDs []int64
-	typing := &fakeTyping{onSendWith: func(chatID int64) {
+	typing := TypingFunc(func(_ context.Context, _ string, chatID int64) error {
 		mu.Lock()
 		chatIDs = append(chatIDs, chatID)
 		mu.Unlock()
-	}}
+		return nil
+	})
 
-	stop := startTypingLoop(context.Background(), typing, 42)
+	stop := startTypingLoop(context.Background(), typing, "telegram", 42)
 	// Immediate send + wait for one tick (using short interval isn't possible
 	// since the loop hardcodes 5s, so we just verify the immediate call)
 	time.Sleep(100 * time.Millisecond)
@@ -233,18 +240,3 @@ func TestStartTypingLoopRepeats(t *testing.T) {
 	}
 }
 
-// fakeTyping implements TypingIndicator for tests.
-type fakeTyping struct {
-	onSend     func()
-	onSendWith func(chatID int64)
-}
-
-func (f *fakeTyping) SendTyping(_ context.Context, chatID int64) error {
-	if f.onSend != nil {
-		f.onSend()
-	}
-	if f.onSendWith != nil {
-		f.onSendWith(chatID)
-	}
-	return nil
-}

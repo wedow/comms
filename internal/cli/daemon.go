@@ -1,21 +1,14 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
-	"time"
 
-	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
 	"github.com/spf13/cobra"
 	"github.com/wedow/comms/internal/config"
 	"github.com/wedow/comms/internal/daemon"
-	"github.com/wedow/comms/internal/message"
-	"github.com/wedow/comms/providers/telegram"
 )
 
 func newDaemonCmd() *cobra.Command {
@@ -71,7 +64,7 @@ func newDaemonCmd() *cobra.Command {
 				return fmt.Errorf("daemon already running")
 			}
 
-			return daemon.Run(cmd.Context(), cfg, root, &telegramProvider{token: cfg.Telegram.Token})
+			return daemon.Run(cmd.Context(), cfg, root, []string{"telegram"})
 		},
 	}
 	runCmd.Flags().String("dir", ".comms", "root directory")
@@ -178,35 +171,4 @@ func newDaemonCmd() *cobra.Command {
 
 	cmd.AddCommand(statusCmd, runCmd, startCmd, stopCmd, logsCmd, newInstallCmd(), newUninstallCmd())
 	return cmd
-}
-
-type telegramProvider struct {
-	token   string
-	botOnce sync.Once
-	botAPI  *bot.Bot
-}
-
-func (t *telegramProvider) Poll(ctx context.Context, initialOffset int64, handler func(msg message.Message, chatID int64, isEdit bool), reactionHandler func(channel string, msgID int, from string, emoji string, date time.Time)) (int64, error) {
-	return telegram.Poll(ctx, t.token, initialOffset, handler, reactionHandler)
-}
-
-func (t *telegramProvider) initBot() {
-	t.botOnce.Do(func() {
-		b, err := bot.New(t.token, bot.WithSkipGetMe())
-		if err == nil {
-			t.botAPI = b
-		}
-	})
-}
-
-func (t *telegramProvider) SendTyping(ctx context.Context, chatID int64) error {
-	t.initBot()
-	if t.botAPI == nil {
-		return fmt.Errorf("telegram bot not initialized")
-	}
-	_, err := t.botAPI.SendChatAction(ctx, &bot.SendChatActionParams{
-		ChatID: chatID,
-		Action: models.ChatActionTyping,
-	})
-	return err
 }

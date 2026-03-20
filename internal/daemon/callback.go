@@ -10,11 +10,8 @@ import (
 	"time"
 )
 
-// TypingIndicator is an optional interface that providers can implement to show
-// a typing indicator while callbacks are running.
-type TypingIndicator interface {
-	SendTyping(ctx context.Context, chatID int64) error
-}
+// TypingFunc sends a typing indicator for the given provider and chat.
+type TypingFunc func(ctx context.Context, provider string, chatID int64) error
 
 // CallbackEnv holds the context passed to a callback command as environment variables.
 type CallbackEnv struct {
@@ -28,7 +25,7 @@ type CallbackEnv struct {
 // ExecCallback runs command asynchronously in a shell with COMMS_* env vars set.
 // Stdout/stderr are logged. If typing is non-nil and ChatID is set, a typing
 // indicator is sent for the duration of the command.
-func ExecCallback(ctx context.Context, command string, env CallbackEnv, typing TypingIndicator) {
+func ExecCallback(ctx context.Context, command string, env CallbackEnv, typing TypingFunc) {
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "sh"
@@ -54,7 +51,7 @@ func ExecCallback(ctx context.Context, command string, env CallbackEnv, typing T
 	go func() {
 		var stopTyping func()
 		if typing != nil && env.ChatID != 0 {
-			stopTyping = startTypingLoop(ctx, typing, env.ChatID)
+			stopTyping = startTypingLoop(ctx, typing, env.Provider, env.ChatID)
 		}
 
 		out, err := cmd.CombinedOutput()
@@ -73,10 +70,10 @@ func ExecCallback(ctx context.Context, command string, env CallbackEnv, typing T
 
 // startTypingLoop sends a typing indicator immediately and then every 5 seconds
 // until the returned stop function is called.
-func startTypingLoop(parent context.Context, typing TypingIndicator, chatID int64) func() {
+func startTypingLoop(parent context.Context, typing TypingFunc, provider string, chatID int64) func() {
 	ctx, cancel := context.WithCancel(parent)
 	go func() {
-		if err := typing.SendTyping(ctx, chatID); err != nil {
+		if err := typing(ctx, provider, chatID); err != nil {
 			log.Printf("callback: typing: %v", err)
 		}
 		ticker := time.NewTicker(5 * time.Second)
@@ -86,7 +83,7 @@ func startTypingLoop(parent context.Context, typing TypingIndicator, chatID int6
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := typing.SendTyping(ctx, chatID); err != nil {
+				if err := typing(ctx, provider, chatID); err != nil {
 					log.Printf("callback: typing: %v", err)
 				}
 			}
@@ -101,7 +98,7 @@ func startTypingLoop(parent context.Context, typing TypingIndicator, chatID int6
 type CallbackRunner struct {
 	command string
 	delay   time.Duration
-	typing  TypingIndicator
+	typing  TypingFunc
 	ctx     context.Context
 
 	mu      sync.Mutex
@@ -111,7 +108,7 @@ type CallbackRunner struct {
 
 // NewCallbackRunner creates a CallbackRunner with the given command and debounce delay.
 // typing may be nil if the provider does not support typing indicators.
-func NewCallbackRunner(ctx context.Context, command string, delay time.Duration, typing TypingIndicator) *CallbackRunner {
+func NewCallbackRunner(ctx context.Context, command string, delay time.Duration, typing TypingFunc) *CallbackRunner {
 	return &CallbackRunner{command: command, delay: delay, typing: typing, ctx: ctx}
 }
 
