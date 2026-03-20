@@ -1,6 +1,6 @@
 ---
 id: com-gvr2
-status: open
+status: closed
 deps: [com-mnvn]
 links: []
 created: 2026-03-20T01:04:55Z
