@@ -22,6 +22,16 @@ func TestDefault(t *testing.T) {
 	if c.Callback.Command != "" {
 		t.Errorf("Callback.Command = %q, want empty", c.Callback.Command)
 	}
+	if c.Providers == nil {
+		t.Fatal("Providers map is nil, want populated")
+	}
+	tg, ok := c.Providers["telegram"]
+	if !ok {
+		t.Fatal("Providers[\"telegram\"] not found")
+	}
+	if tg["token"] != "" {
+		t.Errorf("Providers[\"telegram\"][\"token\"] = %v, want empty string", tg["token"])
+	}
 }
 
 func TestLoad(t *testing.T) {
@@ -59,6 +69,17 @@ delay = "10s"
 	if c.Callback.Delay != "10s" {
 		t.Errorf("Callback.Delay = %q, want %q", c.Callback.Delay, "10s")
 	}
+	// Migration: old [telegram] should populate Providers["telegram"]
+	if c.Providers == nil {
+		t.Fatal("Providers map is nil after loading old [telegram] config")
+	}
+	tg, ok := c.Providers["telegram"]
+	if !ok {
+		t.Fatal("Providers[\"telegram\"] not populated from [telegram] migration")
+	}
+	if tg["token"] != "file-token" {
+		t.Errorf("Providers[\"telegram\"][\"token\"] = %v, want %q", tg["token"], "file-token")
+	}
 }
 
 func TestLoadEnvOverride(t *testing.T) {
@@ -81,6 +102,52 @@ token = "file-token"
 
 	if c.Telegram.Token != "env-token" {
 		t.Errorf("Telegram.Token = %q, want %q", c.Telegram.Token, "env-token")
+	}
+	// Env override should also populate Providers["telegram"]["token"]
+	if c.Providers == nil {
+		t.Fatal("Providers map is nil after env override")
+	}
+	tg, ok := c.Providers["telegram"]
+	if !ok {
+		t.Fatal("Providers[\"telegram\"] not found after env override")
+	}
+	if tg["token"] != "env-token" {
+		t.Errorf("Providers[\"telegram\"][\"token\"] = %v, want %q", tg["token"], "env-token")
+	}
+}
+
+func TestLoadProvidersOnly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+
+	tomlData := `[general]
+format = "markdown"
+
+[providers.telegram]
+token = "new-format-token"
+`
+	if err := os.WriteFile(path, []byte(tomlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if c.Providers == nil {
+		t.Fatal("Providers map is nil")
+	}
+	tg, ok := c.Providers["telegram"]
+	if !ok {
+		t.Fatal("Providers[\"telegram\"] not found")
+	}
+	if tg["token"] != "new-format-token" {
+		t.Errorf("Providers[\"telegram\"][\"token\"] = %v, want %q", tg["token"], "new-format-token")
+	}
+	// Legacy Telegram.Token should be empty (no [telegram] section)
+	if c.Telegram.Token != "" {
+		t.Errorf("Telegram.Token = %q, want empty (no legacy section)", c.Telegram.Token)
 	}
 }
 

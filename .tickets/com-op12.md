@@ -1,6 +1,6 @@
 ---
 id: com-op12
-status: open
+status: closed
 deps: [com-r9tt]
 links: []
 created: 2026-03-20T01:05:19Z

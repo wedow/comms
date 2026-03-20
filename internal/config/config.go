@@ -33,6 +33,9 @@ func Default() Config {
 	return Config{
 		General:  GeneralConfig{Format: "markdown"},
 		Callback: CallbackConfig{Delay: "5s"},
+		Providers: map[string]map[string]any{
+			"telegram": {"token": ""},
+		},
 	}
 }
 
@@ -58,8 +61,25 @@ func Load(path string) (Config, error) {
 	if _, err := toml.DecodeFile(path, &c); err != nil {
 		return Config{}, err
 	}
+	// Migration: copy [telegram] to [providers.telegram] if not already set
+	if c.Telegram.Token != "" {
+		if c.Providers == nil {
+			c.Providers = make(map[string]map[string]any)
+		}
+		if c.Providers["telegram"] == nil {
+			c.Providers["telegram"] = map[string]any{"token": c.Telegram.Token}
+		}
+	}
+	// Env var override
 	if env := os.Getenv("COMMS_TELEGRAM_TOKEN"); env != "" {
 		c.Telegram.Token = env
+		if c.Providers == nil {
+			c.Providers = make(map[string]map[string]any)
+		}
+		if c.Providers["telegram"] == nil {
+			c.Providers["telegram"] = make(map[string]any)
+		}
+		c.Providers["telegram"]["token"] = env
 	}
 	return c, nil
 }
