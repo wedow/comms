@@ -1,6 +1,6 @@
 ---
 id: com-6g26
-status: open
+status: closed
 deps: [com-7pm4, com-w70v]
 links: []
 created: 2026-03-20T01:06:43Z
