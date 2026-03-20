@@ -77,6 +77,10 @@ func (m *mockSendBot) SetMessageReaction(_ context.Context, _ *bot.SetMessageRea
 	return false, nil
 }
 
+func (m *mockSendBot) SendChatAction(_ context.Context, _ *bot.SendChatActionParams) (bool, error) {
+	return true, nil
+}
+
 func (m *mockSendBot) GetFile(_ context.Context, _ *bot.GetFileParams) (*models.File, error) {
 	return nil, nil
 }

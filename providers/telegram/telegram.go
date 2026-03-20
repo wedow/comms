@@ -18,6 +18,7 @@ type BotAPI interface {
 	SendVoice(ctx context.Context, params *bot.SendVoiceParams) (*models.Message, error)
 	SendAnimation(ctx context.Context, params *bot.SendAnimationParams) (*models.Message, error)
 	SetMessageReaction(ctx context.Context, params *bot.SetMessageReactionParams) (bool, error)
+	SendChatAction(ctx context.Context, params *bot.SendChatActionParams) (bool, error)
 	GetFile(ctx context.Context, params *bot.GetFileParams) (*models.File, error)
 	FileDownloadLink(f *models.File) string
 }

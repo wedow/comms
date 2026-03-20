@@ -1,6 +1,6 @@
 ---
 id: com-ab0w
-status: open
+status: closed
 deps: [com-20s3, com-mnvn, com-gvr2]
 links: []
 created: 2026-03-20T01:08:31Z

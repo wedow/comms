@@ -53,6 +53,10 @@ func (m *mockReactBot) SetMessageReaction(ctx context.Context, params *bot.SetMe
 	return m.reactFn(ctx, params)
 }
 
+func (m *mockReactBot) SendChatAction(_ context.Context, _ *bot.SendChatActionParams) (bool, error) {
+	return true, nil
+}
+
 func (m *mockReactBot) GetFile(_ context.Context, _ *bot.GetFileParams) (*models.File, error) {
 	return nil, nil
 }
