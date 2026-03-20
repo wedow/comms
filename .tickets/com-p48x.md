@@ -1,6 +1,6 @@
 ---
 id: com-p48x
-status: open
+status: closed
 deps: [com-20s3, com-op5m]
 links: []
 created: 2026-03-20T01:05:02Z
