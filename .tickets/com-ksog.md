@@ -1,6 +1,6 @@
 ---
 id: com-ksog
-status: open
+status: closed
 deps: [com-20s3, com-p48x]
 links: []
 created: 2026-03-20T01:04:53Z
