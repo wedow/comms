@@ -39,6 +39,23 @@ func Default() Config {
 	}
 }
 
+// TelegramToken returns the Telegram token from the Providers map.
+// Returns "" if not configured or not a string.
+func (c *Config) TelegramToken() string {
+	if c.Providers == nil {
+		return ""
+	}
+	tg, ok := c.Providers["telegram"]
+	if !ok {
+		return ""
+	}
+	token, ok := tg["token"].(string)
+	if !ok {
+		return ""
+	}
+	return token
+}
+
 func (c *Config) ProviderConfig(provider string) ([]byte, error) {
 	p, ok := c.Providers[provider]
 	if !ok {

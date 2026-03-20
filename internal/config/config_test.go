@@ -219,3 +219,56 @@ func TestProviderNames(t *testing.T) {
 		}
 	})
 }
+
+func TestTelegramToken(t *testing.T) {
+	t.Run("returns token from Providers map", func(t *testing.T) {
+		c := Config{
+			Providers: map[string]map[string]any{
+				"telegram": {"token": "my-token"},
+			},
+		}
+		if got := c.TelegramToken(); got != "my-token" {
+			t.Errorf("TelegramToken() = %q, want %q", got, "my-token")
+		}
+	})
+
+	t.Run("nil Providers", func(t *testing.T) {
+		c := Config{}
+		if got := c.TelegramToken(); got != "" {
+			t.Errorf("TelegramToken() = %q, want empty", got)
+		}
+	})
+
+	t.Run("telegram not in Providers", func(t *testing.T) {
+		c := Config{
+			Providers: map[string]map[string]any{
+				"slack": {"token": "slack-token"},
+			},
+		}
+		if got := c.TelegramToken(); got != "" {
+			t.Errorf("TelegramToken() = %q, want empty", got)
+		}
+	})
+
+	t.Run("token key missing", func(t *testing.T) {
+		c := Config{
+			Providers: map[string]map[string]any{
+				"telegram": {"timeout": 30},
+			},
+		}
+		if got := c.TelegramToken(); got != "" {
+			t.Errorf("TelegramToken() = %q, want empty", got)
+		}
+	})
+
+	t.Run("token not a string", func(t *testing.T) {
+		c := Config{
+			Providers: map[string]map[string]any{
+				"telegram": {"token": 12345},
+			},
+		}
+		if got := c.TelegramToken(); got != "" {
+			t.Errorf("TelegramToken() = %q, want empty", got)
+		}
+	})
+}
