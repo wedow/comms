@@ -64,7 +64,7 @@ func newDaemonCmd() *cobra.Command {
 				return fmt.Errorf("daemon already running")
 			}
 
-			return daemon.Run(cmd.Context(), cfg, root, []string{"telegram"})
+			return daemon.Run(cmd.Context(), cfg, root, cfg.ProviderNames())
 		},
 	}
 	runCmd.Flags().String("dir", ".comms", "root directory")
