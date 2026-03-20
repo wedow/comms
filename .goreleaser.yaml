@@ -1,7 +1,19 @@
 version: 2
 
 builds:
-  - main: ./cmd/comms
+  - id: comms
+    main: ./cmd/comms
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: linux
+        goarch: arm64
+  - id: comms-telegram
+    main: ./cmd/comms-telegram
     goos:
       - darwin
       - linux
@@ -13,7 +25,10 @@ builds:
         goarch: arm64
 
 archives:
-  - format: tar.gz
+  - builds:
+      - comms
+      - comms-telegram
+    format: tar.gz
     files:
       - LICENSE*
       - README*
@@ -40,6 +55,7 @@ brews:
     license: MIT
     install: |
       bin.install "comms"
+      bin.install "comms-telegram"
     service: |
       run [opt_bin/"comms", "daemon", "start"]
       keep_alive true
